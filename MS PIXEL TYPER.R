@@ -1,4 +1,4 @@
-#################### FUNCTIONS - MASS SPECTROMETRY 2017.05.23 ##################
+#################### FUNCTIONS - MASS SPECTROMETRY 2017.05.31 ##################
 
 
 # Clear the console
@@ -378,7 +378,7 @@ matrix_add_class_and_sample <- function(signal_matrix, peaks = list(), class_lis
 ###################################### FROM CLASS AND OUTCOME TO NUMBERS FOR MSI
 # This function takes a list (character vector) of classes and a list (character vector) of corresponding outcomes and returns a dataframe with the classes, the outcomes and a number corresponding to the outcomes (0.5 = benign, 1= malignant), to be used to replace the intensities in the spectra list for plotting purposes.
 # The outcome list must correspond to the class list, otherwise the outcomes are matched to the first elements of the class list, while the remaining class list elements are linked to the outcome 'other'; or the other outcomes are turned into a class.
-# The outcome list can be: benign/ben/b - malignant/mal/m - other/oth/o
+# The outcome list must be: b (for benign) - m (for malignant) - o (for other)
 # If a vector is provided, the function will return also the same vector with the classes converted in numbers according to the outcome (benign = 0.5, malignant = 1)
 outcome_and_class_to_MS <- function(class_list = c("HP", "PTC"), outcome_list = c("b", "m"), class_vector = NULL) {
     # Extract the unique values in case of duplicates
@@ -766,77 +766,6 @@ read_spectra_files <- function(folder, spectra_format = "imzml", full_path = TRU
     }
     return(spectra_files)
 }
-
-
-
-
-
-################################################################################
-
-
-
-
-
-######################### REPLACE THE SNR WITH THE STDEV IN THE PEAKS
-# This function computes the standard deviation of each peak of an average spectrum peaklist, by replacing the existing SNR slot with the SD or CV: all the peaks (average and dataset) are aligned and each peak of the average peaklist is searched across the dataset thanks to the intensity matrix.
-replace_SNR_in_avg_peaklist <- function (spectra, peak_picking_algorithm = "SuperSmoother", SNR = 5, tof_mode = "linear", tolerance_ppm = 2000, spectra_format = "imzml", replace_snr_with = "std") {
-    install_and_load_required_packages(c("MALDIquant", "XML", "stats"))
-    # Rename the trim function
-    trim_spectra <- get(x = "trim", pos = "package:MALDIquant")
-    # Check if it is not a single spectrum
-    # If the spectra are many...
-    if (length(spectra) > 0 && isMassSpectrumList(spectra)) {
-        # Average the spectra
-        avg_spectrum <- averageMassSpectra(spectra, method = "mean")
-        avg_spectrum <- removeBaseline(avg_spectrum, method = "TopHat")
-        avg_spectrum <- calibrateIntensity(avg_spectrum, method = "TIC")
-        # Peak picking
-        peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, SNR = SNR)
-        peaks_avg <- peak_picking(avg_spectrum, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, SNR = SNR)
-        # Merge for the alignment
-        global_peaks <- append(peaks_avg, peaks)
-        global_peaks <- align_and_filter_peaks(global_peaks, tof_mode = tof_mode, peak_filtering_frequency_threshold_percent = 5)
-        peaks_avg <- global_peaks[[1]]
-        peaks <- global_peaks [2:length(global_peaks)]
-        # Compute the intensity matrix
-        intensity_matrix <- intensityMatrix(peaks, spectra)
-        # Scroll the peaks of the average peaklist...
-        for (p in 1:length(peaks_avg@mass)) {
-            # Search for the column in the intensity_matrix
-            for (z in 1:ncol(intensity_matrix)) {
-                # Match...
-                if (peaks_avg@mass[p] == colnames(intensity_matrix)[z]) {
-                    # Create an empty vector where to allocate the intensity of this peak into the dataset
-                    intensity_vector <- intensity_matrix[,z]
-                    # Compute the standard deviation
-                    if (replace_snr_with == "std" || replace_snr_with == "sd") {
-                        std_int <- sd(intensity_vector)
-                        # Replacement
-                        peaks_avg@snr[p] <- std_int
-                    }
-                    if (replace_snr_with == "cv" || replace_snr_with == "CV") {
-                        std_int <- sd(intensity_vector)
-                        mean_int <- mean(intensity_vector)
-                        cv_int <- std_int / mean_int
-                        # Replacement
-                        peaks_avg@snr[p] <- cv_int
-                    }
-                    # Save time avoiding to scroll to the end when found
-                    break
-                } else {peaks_avg@snr[p] <- NaN}
-            }
-        }
-        return (peaks_avg)
-    } else {
-        return(print("The spectra list is empty or the spectra list contains only one spectrum"))
-    }
-}
-
-
-
-
-
-################################################################################
 
 
 
@@ -1543,50 +1472,63 @@ replace_backslash <- function(spectra, allow_parallelization = FALSE) {
 
 ################################################################# IMPORT SPECTRA
 # The function imports the spectral files from the filepath specified. The spectral type can be specified, along with the mass range to cut the spectra during the import phase. The function automatically transforms the backslash in the forward slash on Windows and replace the list names (and the sample name if needed) for a better identification of spectra.
-import_spectra <- function(filepath, spectra_format = "imzml", mass_range = NULL, allow_parallelization = FALSE, spectral_names = "name", replace_sample_name_field = TRUE) {
+import_spectra <- function(filepath, spectra_format = "imzml", mass_range = NULL, allow_parallelization = FALSE, spectral_names = "name", replace_sample_name_field = TRUE, remove_empty_spectra = TRUE) {
     ### Load the packages
     install_and_load_required_packages(c("MALDIquant", "MALDIquantForeign", "XML", "parallel"))
     ### imzML
     if (spectra_format == "imzml" || spectra_format == "imzML") {
         # Mass range specified
         if (!is.null(mass_range)) {
-            spectra <- importImzMl(filepath, massRange = mass_range)
+            spectra <- importImzMl(filepath, massRange = mass_range, removeEmptySpectra = FALSE)
         } else {
             # No mass range specified
-            spectra <- importImzMl(filepath)
+            spectra <- importImzMl(filepath, removeEmptySpectra = FALSE)
         }
     } else if (spectra_format == "brukerflex" || spectra_format == "xmass" || spectra_format == "Xmass") {
         ### Xmass
         # Mass range specified
         if (!is.null(mass_range)) {
-            spectra <- importBrukerFlex(filepath, massRange = mass_range)
+            spectra <- importBrukerFlex(filepath, massRange = mass_range, removeEmptySpectra = FALSE)
         } else {
             # No mass range specified
-            spectra <- importBrukerFlex(filepath)
+            spectra <- importBrukerFlex(filepath, removeEmptySpectra = FALSE)
         }
     } else if (spectra_format == "txt" || spectra_format == "text" || spectra_format == "TXT") {
-        ### Xmass
+        ### TXT
         # Mass range specified
         if (!is.null(mass_range)) {
-            spectra <- importTxt(filepath, massRange = mass_range)
+            spectra <- importTxt(filepath, massRange = mass_range, removeEmptySpectra = FALSE)
         } else {
             # No mass range specified
-            spectra <- importTxt(filepath)
+            spectra <- importTxt(filepath, removeEmptySpectra = FALSE)
         }
     } else if (spectra_format == "csv" || spectra_format == "CSV") {
-        ### Xmass
+        ### CSV
         # Mass range specified
         if (!is.null(mass_range)) {
-            spectra <- importCsv(filepath, massRange = mass_range)
+            spectra <- importCsv(filepath, massRange = mass_range, removeEmptySpectra = FALSE)
         } else {
             # No mass range specified
-            spectra <- importCsv(filepath)
+            spectra <- importCsv(filepath, removeEmptySpectra = FALSE)
+        }
+    } else if (spectra_format == "msd" || spectra_format == "MSD" || spectra_format == "mMass") {
+        ### TXT
+        # Mass range specified
+        if (!is.null(mass_range)) {
+            spectra <- importMsd(filepath, massRange = mass_range, removeEmptySpectra = FALSE)
+        } else {
+            # No mass range specified
+            spectra <- importMsd(filepath, removeEmptySpectra = FALSE)
         }
     }
     ### Replace the backslash on Windows
     spectra <- replace_backslash(spectra, allow_parallelization = allow_parallelization)
     ### Identify the spectra by setting the names to the spectral list
     spectra <- replace_sample_name_list(spectra, spectra_format = spectra_format, type = spectral_names, replace_sample_name_field = replace_sample_name_field)
+    ### Remove empty spectra
+    if (remove_empty_spectra == TRUE) {
+        spectra <- removeEmptyMassObjects(spectra)
+    }
     ### Return
     if (length(spectra) > 0) {
         return(spectra)
@@ -1651,6 +1593,17 @@ replace_sample_name <- function(spectra, spectra_format = "imzml", allow_paralle
             sample_name <- sample_name[1]
             # Put the name back into the spectra
             spectra@metaData$file <- sample_name
+        } else if (spectra_format == "msd" || spectra_format == "MSD" || spectra_format == "mMass") {
+            ### MSD
+            # Split the filepath at /
+            sample_name <- unlist(strsplit(spectra@metaData$file[1],"/"))
+            # The sample name is the last part of the path
+            sample_name <- sample_name[length(sample_name)]
+            # Detach the file extension
+            sample_name <- unlist(strsplit(sample_name, ".msd"))
+            sample_name <- sample_name[1]
+            # Put the name back into the spectra
+            spectra@metaData$file <- sample_name
         }
         ### Return
         return(spectra)
@@ -1699,40 +1652,23 @@ replace_sample_name <- function(spectra, spectra_format = "imzml", allow_paralle
 
 #################################################### SPECTRA GROUPING (CLASSES)
 # The functions takes a list of spectra (MALDIquant) and generates a list of representative spectra, averaging spectra according to the class they belong to, generating one average spectrum per class.
-group_spectra_class <- function(spectra, class_list, grouping_method = "mean", spectra_format = "imzml", class_in_file_path = TRUE, class_in_file_name = FALSE, tof_mode = "linear", preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = "cubic", spectral_alignment_reference = "auto"), allow_parallelization = FALSE) {
+group_spectra_class <- function(spectra, class_list, grouping_method = "mean", spectra_format = "imzml", class_in_file_path = TRUE, class_in_file_name = FALSE, tof_mode = "linear", preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = "cubic", spectral_alignment_reference = "average spectrum"), allow_parallelization = FALSE) {
     ##### Spectral preprocessing
     if (!is.null(preprocessing_parameters) && is.list(preprocessing_parameters) && length(preprocessing_parameters) > 0) {
         spectra <- preprocess_spectra(spectra, tof_mode = tof_mode, preprocessing_parameters = preprocessing_parameters, allow_parallelization = allow_parallelization)
     }
-    ########## imzML
-    if (spectra_format == "imzml" || spectra_format == "imzML") {
-        ## REPLACE THE filepath PARAMETER FOR EACH SPECTRUM WITH THE CLASS
-        spectra <- replace_class_name(spectra, class_list = class_list, spectra_format = spectra_format, class_in_file_path = class_in_file_path, class_in_file_name = class_in_file_name)
-        # Put the filenames/classes in a vector
-        # Create the empty vector
-        class_vector <- character()
-        # Add the file names recursively, scrolling the whole spectral dataset
-        if (isMassSpectrumList(spectra)) {
-            for (i in 1:length(spectra)) {
-                class_vector <- append(class_vector, spectra[[i]]@metaData$file[1])
-            }
-        } else {
-            class_vector <- spectra@metaData$file[1]
+    ## REPLACE THE filepath PARAMETER FOR EACH SPECTRUM WITH THE CLASS
+    spectra <- replace_class_name(spectra, class_list = class_list, spectra_format = spectra_format, class_in_file_path = class_in_file_path, class_in_file_name = class_in_file_name)
+    # Put the filenames/classes in a vector
+    # Create the empty vector
+    class_vector <- character()
+    # Add the file names recursively, scrolling the whole spectral dataset
+    if (isMassSpectrumList(spectra)) {
+        for (i in 1:length(spectra)) {
+            class_vector <- append(class_vector, spectra[[i]]@metaData$file[1])
         }
-    } else if (spectra_format == "brukerflex" || spectra_format == "xmass" || spectra_format == "Xmass") {
-        ########## Xmass
-        ## REPLACE THE filepath PARAMETER FOR EACH SPECTRUM WITH THE CLASS
-        spectra <- replace_class_name(spectra, class_list = class_list, spectra_format = spectra_format, class_in_file_path = class_in_file_path, class_in_file_name = class_in_file_name)
-        # Create the empty vector
-        class_vector <- character()
-        # Add the file names recursively, scrolling the whole spectral dataset
-        if (isMassSpectrumList(spectra)) {
-            for (i in 1:length(spectra)) {
-                class_vector <- append(class_vector, spectra[[i]]@metaData$file[1])
-            }
-        } else {
-            class_vector <- spectra@metaData$file[1]
-        }
+    } else {
+        class_vector <- spectra@metaData$file[1]
     }
     # Average
     if (grouping_method == "mean" || grouping_method == "average") {
@@ -1807,6 +1743,9 @@ replace_sample_name_list <- function(spectra, spectra_format = "imzml", type = "
             }
         } else if (type == "number") {
             ########## NUMBER
+            if (replace_sample_name_field == TRUE) {
+                spectra <- replace_sample_name(spectra, spectra_format = spectra_format, allow_parallelization = FALSE)
+            }
             ##### More spectra
             if (isMassSpectrumList(spectra) || isMassPeaksList(spectra)) {
                 # Generate a vector with all the spectra names
@@ -1994,7 +1933,7 @@ plot_spectra <- function(spectra, mass_range = NULL) {
 # The function allows to select some additional parameters of the preprocessing.
 # This version of the function whould be faster because each element of the spectral list is subjected to all the preprocessing step.
 # If an algorithm is set to NULL, that preprocessing step will not be performed.
-preprocess_spectra <- function(spectra, tof_mode = "linear", preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL, spectral_alignment_reference = "auto"), allow_parallelization = FALSE) {
+preprocess_spectra <- function(spectra, tof_mode = "linear", preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL, spectral_alignment_reference = "average_spectrum"), allow_parallelization = FALSE) {
     ##### Load the required libraries
     install_and_load_required_packages(c("MALDIquant", "XML", "parallel"))
     ##### Rename the trim function
@@ -2044,19 +1983,19 @@ preprocess_spectra <- function(spectra, tof_mode = "linear", preprocessing_param
             if (!is.null(smoothing_algorithm) && smoothing_algorithm == "SavitzkyGolay") {
                 smoothing_half_window_size <- 3
             } else if (!is.null(smoothing_algorithm) && smoothing_algorithm == "MovingAverage") {
-                smoothing_half_window_size <- 0.6
+                smoothing_half_window_size <- 1
             }
         } else if (!is.null(smoothing_strength) && smoothing_strength == "strong") {
             if (!is.null(smoothing_algorithm) && smoothing_algorithm == "SavitzkyGolay") {
                 smoothing_half_window_size <- 6
             } else if (!is.null(smoothing_algorithm) && smoothing_algorithm == "MovingAverage") {
-                smoothing_half_window_size <- 1.2
+                smoothing_half_window_size <- 2
             }
         } else if (!is.null(smoothing_strength) && smoothing_strength == "stronger") {
             if (!is.null(smoothing_algorithm) && smoothing_algorithm == "SavitzkyGolay") {
                 smoothing_half_window_size <- 9
             } else if (!is.null(smoothing_algorithm) && smoothing_algorithm == "MovingAverage") {
-                smoothing_half_window_size <- 1.8
+                smoothing_half_window_size <- 3
             }
         }
     }
@@ -2097,15 +2036,7 @@ preprocess_spectra <- function(spectra, tof_mode = "linear", preprocessing_param
         }
         ### Normalization
         if (!is.null(normalization_algorithm)) {
-            if (normalization_algorithm == "TIC") {
-                if (!is.null(normalization_mass_range) && is.numeric(normalization_mass_range)) {
-                    x <- calibrateIntensity(x, method = normalization_algorithm, range = normalization_mass_range)
-                } else {
-                    x <- calibrateIntensity(x, method = normalization_algorithm)
-                }
-            } else {
-                x <- calibrateIntensity(x, method = normalization_algorithm)
-            }
+            x <- normalize_spectra(x, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range)
         }
         ### Return the preprocessed spectrum (x)
         return(x)
@@ -2145,7 +2076,7 @@ preprocess_spectra <- function(spectra, tof_mode = "linear", preprocessing_param
                     cpu_thread_number <- cpu_thread_number - 1
                     cl <- makeCluster(cpu_thread_number)
                     clusterEvalQ(cl, {library(MALDIquant)})
-                    clusterExport(cl = cl, varlist = c("mass_range", "transformation_algorithm", "smoothing_algorithm", "smoothing_half_window_size", "baseline_subtraction_algorithm", "baseline_subtraction_algorithm_parameter", "normalization_algorithm", "normalization_mass_range", "preprocessing_subfunction"), envir = environment())
+                    clusterExport(cl = cl, varlist = c("mass_range", "transformation_algorithm", "smoothing_algorithm", "smoothing_half_window_size", "baseline_subtraction_algorithm", "baseline_subtraction_algorithm_parameter", "normalization_algorithm", "normalization_mass_range", "preprocessing_subfunction", "normalize_spectra"), envir = environment())
                     spectra_temp <- parLapply(cl, spectra_temp, fun = function(spectra_temp) preprocessing_subfunction(spectra_temp, mass_range = mass_range, transformation_algorithm = transformation_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_half_window_size = smoothing_half_window_size, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range))
                     stopCluster(cl)
                 } else {
@@ -2200,7 +2131,7 @@ preprocess_spectra <- function(spectra, tof_mode = "linear", preprocessing_param
 
 ############################################################# SPECTRAL ALIGNMENT
 # The function allows to perform the alignment among spectra. By selecting 'auto', the reference peaks will be automatically determined; if 'average spectrum' is selected, the reference peaklist is the peaklist of the average spectrum; if 'skyline spectrum' is selected, the reference peaklist is the peaklist of the skyline spectrum.
-align_spectra <- function(spectra, spectral_alignment_algorithm = "cubic", spectral_alignment_reference = "auto", tof_mode = "linear", deisotope_peaklist = FALSE) {
+align_spectra <- function(spectra, spectral_alignment_algorithm = "cubic", spectral_alignment_reference = "average spectrum", tof_mode = "linear", deisotope_peaklist = FALSE) {
     # Perform only if a method is specified
     if (!is.null(spectral_alignment_algorithm)) {
         if (isMassSpectrumList(spectra)) {
@@ -2219,16 +2150,16 @@ align_spectra <- function(spectra, spectral_alignment_algorithm = "cubic", spect
                 # Ganerate the average spectrum
                 average_spectrum <- averageMassSpectra(spectra, method = "mean")
                 # Preprocess the average spectrum
-                if (tof_mode == "reflectron") {
+                if (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R") {
                     smoothing_algorithm_avg <- NULL
                 } else {
                     smoothing_algorithm_avg <- "SavitzkyGolay"
                 }
-                average_spectrum <- preprocess_spectra(average_spectrum, tof_mode = tof_mode, preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = smoothing_algorithm_avg, smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 200, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL, spectral_alignment_reference = "auto"))
+                average_spectrum <- preprocess_spectra(average_spectrum, tof_mode = tof_mode, preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = smoothing_algorithm_avg, smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 200, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL))
                 # Detect peaks onto the average spectrum: refference peaklist
                 average_spectrum_peaks <- detectPeaks(average_spectrum, halfWindowSize = half_window_alignment, method = "MAD", SNR = 2)
                 # Deisotope peaklist
-                if (deisotope_peaklist == TRUE) {
+                if (deisotope_peaklist == TRUE && (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R")) {
                     average_spectrum_peaks <- deisotope_peaks(average_spectrum_peaks)
                 }
                 # Align the spectra
@@ -2238,7 +2169,7 @@ align_spectra <- function(spectra, spectral_alignment_algorithm = "cubic", spect
                 # Ganerate the skyline spectrum
                 skyline_spectrum <- averageMassSpectra(spectra, method = "sum")
                 # Preprocess the skyline spectrum
-                if (tof_mode == "reflectron") {
+                if (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R") {
                     smoothing_algorithm_skyline <- NULL
                 } else {
                     smoothing_algorithm_skyline <- "SavitzkyGolay"
@@ -2247,7 +2178,7 @@ align_spectra <- function(spectra, spectral_alignment_algorithm = "cubic", spect
                 # Detect peaks onto the skyline spectrum: refference peaklist
                 skyline_spectrum_peaks <- detectPeaks(skyline_spectrum, halfWindowSize = half_window_alignment, method = "MAD", SNR = 2)
                 # Deisotope peaklist
-                if (deisotope_peaklist == TRUE) {
+                if (deisotope_peaklist == TRUE && (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R")) {
                     skyline_spectrum_peaks <- deisotope_peaks(skyline_spectrum_peaks)
                 }
                 # Align the spectra
@@ -2351,7 +2282,7 @@ average_spectrum_bars <- function(spectra, SNR = 5, peak_picking_algorithm = "Su
 
 ############################################# MOST INTENSE PEAKS IN PEAK PICKING
 # This function returns a peak list containing only the most intense peaks per spectrum. If the input is a list of spectra, the function computes the peak picking and keeps only the most intense ones, if it's a list of peaklists, it applies the filtering function directly on the peaks.
-most_intense_signals <- function(spectra, signals_to_take = 20, tof_mode = "linear", peak_picking_algorithm = "SuperSmoother", allow_parallelization = FALSE, deisotope_peaklist = FALSE) {
+most_intense_signals <- function(spectra, signals_to_take = 20, tof_mode = "linear", peak_picking_algorithm = "SuperSmoother", allow_parallelization = FALSE, deisotope_peaklist = FALSE, envelope_peaklist = FALSE) {
     # Load the required libraries
     install_and_load_required_packages(c("parallel", "MALDIquant", "XML"))
     # Rename the trim function
@@ -2379,7 +2310,7 @@ most_intense_signals <- function(spectra, signals_to_take = 20, tof_mode = "line
     ########################################################################
     # Peak picking
     if (isMassSpectrumList(spectra) || isMassSpectrum(spectra)) {
-        peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, SNR = 3, allow_parallelization = allow_parallelization, deisotope_peaklist = deisotope_peaklist)
+        peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, SNR = 3, allow_parallelization = allow_parallelization, deisotope_peaklist = deisotope_peaklist, envelope_peaklist = envelope_peaklist)
     } else if (isMassPeaksList(spectra) || isMassPeaks(spectra)) {
         peaks <- spectra
     }
@@ -2462,7 +2393,7 @@ average_replicates_by_folder <- function(spectra, folder, spectra_format = "bruk
             spectra_names <- character()
             for (s in 1:length(spectra)) {
                 for (f in 1:length(unique_sample_name)) {
-                    if (length(grep(unique_sample_name[f], spectra[[s]]@metaData$file, fixed = TRUE)) > 0) {
+                    if (length(grep(unique_sample_name[f], spectra[[s]]@metaData$file[1], fixed = TRUE)) > 0) {
                         spectra_names <- append(spectra_names, unique_sample_name[f])
                     }
                 }
@@ -2475,12 +2406,16 @@ average_replicates_by_folder <- function(spectra, folder, spectra_format = "bruk
             spectra_names <- unique_sample_name
         }
         # Average the mass spectra, grouping them according to the sample_vector
-        if (averaging_method == "mean" || averaging_method == "average") {
-            spectra_replicates_averaged <- averageMassSpectra(spectra, labels = spectra_names, method = "mean")
-        } else if (averaging_method == "skyline" || averaging_method == "sum") {
-            spectra_replicates_averaged <- averageMassSpectra(spectra, labels = spectra_names, method = "sum")
+        if (length(spectra_names) == length(spectra)) {
+            if (averaging_method == "mean" || averaging_method == "average") {
+                spectra_replicates_averaged <- averageMassSpectra(spectra, labels = spectra_names, method = "mean")
+            } else if (averaging_method == "skyline" || averaging_method == "sum") {
+                spectra_replicates_averaged <- averageMassSpectra(spectra, labels = spectra_names, method = "sum")
+            }
+            return(spectra_replicates_averaged)
+        } else {
+            return(spectra)
         }
-        return(spectra_replicates_averaged)
     } else {
         return(spectra)
     }
@@ -2497,8 +2432,13 @@ average_replicates_by_folder <- function(spectra, folder, spectra_format = "bruk
 
 
 ################################################################### PEAK PICKING
-# This function takes a list of spectra (MALDIquant) and computes the peak picking.
-peak_picking <- function(spectra, peak_picking_algorithm = "SuperSmoother", tof_mode = "linear", SNR = 3, allow_parallelization = FALSE, deisotope_peaklist = FALSE) {
+# This function takes a list of spectra (MALDIquant) and computes the peak picking. It computes also the peak deisotoping or enveloping.
+peak_picking <- function(spectra, peak_picking_algorithm = "SuperSmoother", tof_mode = "linear", SNR = 3, allow_parallelization = FALSE, deisotope_peaklist = FALSE, envelope_peaklist = FALSE) {
+    ###### Fix the conflicting values
+    if (envelope_peaklist == TRUE && deisotope_peaklist == TRUE) {
+        envelope_peaklist <- FALSE
+        deisotope_peaklist <- TRUE
+    }
     ########## Load the required libraries
     install_and_load_required_packages(c("MALDIquant", "parallel", "XML"))
     ##### TOF-MODE
@@ -2536,11 +2476,71 @@ peak_picking <- function(spectra, peak_picking_algorithm = "SuperSmoother", tof_
         }
     }
     ##### Deisotope peaklist
-    if (deisotope_peaklist == TRUE && (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R")) {
+    if ((deisotope_peaklist == TRUE && envelope_peaklist == FALSE) && (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R")) {
         peaks <- deisotope_peaks(peaks, pattern_model_correlation = 0.95, isotopic_tolerance = 10^(-4), isotope_pattern_distance = 1.00235, isotopic_pattern_size = 3L:10L, allow_parallelization = allow_parallelization)
+    }
+    ##### Envelope peaklist
+    if ((envelope_peaklist == TRUE && deisotope_peaklist == FALSE) && (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R")) {
+        peaks <- envelope_peaks(peaks, allow_parallelization = allow_parallelization)
     }
     ##### Return
     return(peaks)
+}
+
+
+
+
+
+################################################################################
+
+
+
+
+
+################################################################### PEAK PICKING
+# This function takes a list of spectra (MALDIquant) and computes the normaliziations which are not in the MALDIquant package (e.g. RMS). Parallel computing is not implemented, since it will be incorporated in the preprocess_spectra function, whch already employs parallelization.
+normalize_spectra <- function(spectra, normalization_algorithm = "RMS", normalization_mass_range = NULL) {
+    # Load required packages
+    install_and_load_required_packages(c("MALDIquant", "XML"))
+    # Function for lapply (x = spectrum)
+    normalization_subfunction <- function(x, normalization_algorithm, normalization_mass_range) {
+        if (!is.null(normalization_algorithm)) {
+            if (normalization_algorithm == "RMS") {
+                # Determine the RMS (accounting for the specified mass range)
+                if (!is.null(normalization_mass_range) && is.numeric(normalization_mass_range)) {
+                    root_mean_square <- sqrt(sum((x@intensity[intersect(which(x@mass > normalization_mass_range[1]), which(x@mass < normalization_mass_range[2]))])^2, na.rm = TRUE))
+                } else {
+                    root_mean_square <- sqrt(sum(x@intensity^2, na.rm = TRUE))
+                }
+                # Divide every intensity by the RMS
+                x@intensity <- x@intensity / root_mean_square
+            } else if (normalization_algorithm == "TIC") {
+                if (!is.null(normalization_mass_range) && is.numeric(normalization_mass_range)) {
+                    x <- calibrateIntensity(x, method = "TIC", range = normalization_mass_range)
+                } else {
+                    x <- calibrateIntensity(x, method = "TIC")
+                }
+            } else if (normalization_algorithm == "PQN" || normalization_algorithm == "median") {
+                x <- calibrateIntensity(x, method = normalization_algorithm)
+            } else {
+                # Do not normalize if the wrong algorithm is specified
+                x <- x
+            }
+        } else {
+            # Do not normalize if the algorithm is NULL
+            x <- x
+        }
+        # Return the normalized spectrum
+        return(x)
+    }
+    ## Apply the function
+    if (isMassSpectrumList(spectra)) {
+        spectra <- lapply(spectra, FUN = function(spectra) normalization_subfunction(spectra, normalization_algorithm, normalization_mass_range))
+    } else if (isMassSpectrum(spectra)) {
+        spectra <- normalization_subfunction(spectra, normalization_algorithm, normalization_mass_range)
+    }
+    ##### Return
+    return(spectra)
 }
 
 
@@ -2598,6 +2598,94 @@ deisotope_peaks <- function(peaks, pattern_model_correlation = 0.95, isotopic_to
 
 
 
+################################################################### PEAK PICKING
+# This function takes a list of peaks (MALDIquant) and returns the same peak list without isotopic clusters, only the most intense peaks in the clusters.
+envelope_peaks <- function(peaks, allow_parallelization = FALSE) {
+    ##### Load the required packages
+    install_and_load_required_packages(c("MALDIquant", "parallel", "XML"))
+    ##### Function for lapply
+    envelope_peaklist_subfunction <- function(peaks) {
+        # Extract the m/z and intensity values
+        mz_values <- peaks@mass
+        intensity_values <- peaks@intensity
+        signals_to_keep <- numeric()
+        # Scroll the peaks...
+        for (int in 1:length(intensity_values)) {
+            # Take only the peaks with the highest intensity in the cluster
+            # If it is the first peak, check only the following ones
+            if (int == 1) {
+                if (intensity_values[int + 1] < intensity_values[int]) {
+                    signals_to_keep <- append(signals_to_keep, mz_values[int])
+                }
+            } else if (int == length(intensity_values)) {
+                # If it is the last peak, check only the previous ones
+                if (intensity_values[int - 1] < intensity_values[int]) {
+                    signals_to_keep <- append(signals_to_keep, mz_values[int])
+                }
+            } else {
+                # If it is the random peak, check both the previous and the following ones
+                if (intensity_values[int - 1] < intensity_values[int] && intensity_values[int + 1] < intensity_values[int]) {
+                    signals_to_keep <- append(signals_to_keep, mz_values[int])
+                }
+            }
+        }
+        # Identify which are the signals to keep
+        signals_to_keep_ID <- which(mz_values %in% signals_to_keep)
+        mz_to_keep <- mz_values[signals_to_keep_ID]
+        int_to_keep <- intensity_values[signals_to_keep_ID]
+        snr_to_keep <- peaks@snr[signals_to_keep_ID]
+        # Put the values back into the peaks element
+        peaks@mass <- mz_to_keep
+        peaks@intensity <- int_to_keep
+        peaks@snr <- snr_to_keep
+        return(peaks)
+    }
+    ##### Multiple peaks
+    if (isMassPeaksList(peaks)) {
+        ##### Multiple cores
+        if (allow_parallelization == TRUE) {
+            # Detect the number of cores
+            cpu_thread_number <- detectCores(logical = TRUE)
+            if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                cpu_thread_number <- cpu_thread_number / 2
+                peaks_enveloped <- mclapply(peaks, FUN = function(peaks) envelope_peaklist_subfunction(peaks), mc.cores = cpu_thread_number)
+            } else if (Sys.info()[1] == "Windows") {
+                cpu_thread_number <- cpu_thread_number - 1
+                # Make the CPU cluster for parallelisation
+                cl <- makeCluster(cpu_thread_number)
+                # Make the cluster use the custom functions and the package functions along with their parameters
+                clusterEvalQ(cl, {library(MALDIquant)})
+                # Pass the variables to the cluster for running the function
+                clusterExport(cl = cl, varlist = "peaks", envir = environment())
+                # Apply the multicore function
+                peaks_enveloped <- parLapply(cl, peaks, fun = function(peaks) envelope_peaklist_subfunction(peaks))
+                stopCluster(cl)
+            } else {
+                # Run the algorithm
+                peaks_enveloped <- lapply(peaks, FUN = function(peaks) envelope_peaklist_subfunction(peaks))
+            }
+        } else {
+            # Run the algorithm
+            peaks_enveloped <- lapply(peaks, FUN = function(peaks) envelope_peaklist_subfunction(peaks))
+        }
+    } else {
+        # Run the algorithm
+        peaks_enveloped <- envelope_peaklist_subfunction(peaks)
+    }
+    # Return
+    return(peaks_enveloped)
+}
+
+
+
+
+
+################################################################################
+
+
+
+
+
 ################################################################# PEAK ALIGNMENT
 # This function takes a list of peaks (MALDIquant) and computes the peak alignment, along with the false positive peaks removal (classwise if a class vector corresponding to the spectra list is specified) and the removal of low-intensity peaks.
 align_and_filter_peaks <- function(peaks, peak_picking_algorithm = "SuperSmoother", tof_mode = "linear", peak_filtering_frequency_threshold_percent = 5, class_vector_for_peak_filtering = NULL, low_intensity_peak_removal_threshold_percent = 0, low_intensity_peak_removal_threshold_method = "element-wise", reference_peaklist = NULL, spectra = NULL, alignment_iterations = 5, allow_parallelization = FALSE) {
@@ -2635,11 +2723,14 @@ align_and_filter_peaks <- function(peaks, peak_picking_algorithm = "SuperSmoothe
         if (!is.null(low_intensity_peak_removal_threshold_percent) && low_intensity_peak_removal_threshold_percent > 0 && low_intensity_peak_removal_threshold_percent < 100) {
             peaks_aligned <- remove_low_intensity_peaks(peaks_aligned, low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, low_intensity_peak_removal_threshold_method = low_intensity_peak_removal_threshold_method, allow_parallelization = allow_parallelization)
         }
-        ##### False positive removal
+        ##### False positive removal (class-wise if a class_vector is specified)
         if (!is.null(peak_filtering_frequency_threshold_percent) && peak_filtering_frequency_threshold_percent > 0) {
             if (is.null(class_vector_for_peak_filtering)) {
                 peaks_aligned <- filterPeaks(peaks_aligned, minFrequency = (peak_filtering_frequency_threshold_percent/100))
             } else {
+                if (!is.factor(class_vector_for_peak_filtering)) {
+                    class_vector_for_peak_filtering <- as.factor(class_vector_for_peak_filtering)
+                }
                 peaks_aligned <- filterPeaks(peaks_aligned, minFrequency = (peak_filtering_frequency_threshold_percent/100), labels = class_vector_for_peak_filtering)
             }
         }
@@ -2854,7 +2945,7 @@ single_model_classification_of_spectra <- function(spectra, model_x, model_name 
                     colnames(final_sample_matrix)[n] <- paste0("X", colnames(final_sample_matrix)[n])
                 }
                 ##### Predictions (spectra by spectra) (class, no probabilities)
-                if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda") {
+                if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda" || model_ID == "bayes") {
                     predicted_classes <- as.character(predict(model_object, newdata = final_sample_matrix, type = "raw"))
                     names(predicted_classes) <- rownames(final_sample_matrix)
                 } else {
@@ -2956,7 +3047,7 @@ single_model_classification_of_spectra <- function(spectra, model_x, model_name 
                         colnames(sample_bin_matrix)[n] <- paste0("X", colnames(sample_bin_matrix)[n])
                     }
                     ##### Predictions (AVG spectrum) (class, no probabilities)
-                    if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda") {
+                    if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda" || model_ID == "bayes") {
                         predicted_class_avg <- as.character(predict(model_object, newdata = sample_bin_matrix, type = "raw"))
                         names(predicted_class_avg) <- rownames(sample_bin_matrix)
                     } else {
@@ -3072,7 +3163,7 @@ single_model_classification_of_spectra <- function(spectra, model_x, model_name 
                         colnames(sample_hca_matrix)[x] <- paste0("X", colnames(sample_hca_matrix)[x])
                     }
                     ##### Predictions (AVG spectrum) (class, no probabilities)
-                    if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda") {
+                    if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda" || model_ID == "bayes") {
                         predicted_class_avg <- as.character(predict(model_object, newdata = sample_hca_matrix, type = "raw"))
                     } else {
                         predicted_class_avg <- as.character(predict(model_object, newdata = sample_hca_matrix))
@@ -3184,7 +3275,7 @@ single_model_classification_of_spectra <- function(spectra, model_x, model_name 
                             colnames(sample_clique_matrix)[x] <- paste0("X", colnames(sample_clique_matrix)[x])
                         }
                         ##### Predictions (AVG spectrum) (class, no probabilities)
-                        if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda") {
+                        if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda" || model_ID == "bayes") {
                             predicted_class_avg <- as.character(predict(model_object, newdata = sample_clique_matrix, type = "raw"))
                         } else {
                             predicted_class_avg <- as.character(predict(model_object, newdata = sample_clique_matrix))
@@ -3216,7 +3307,7 @@ single_model_classification_of_spectra <- function(spectra, model_x, model_name 
                             colnames(sample_independent_matrix)[x] <- paste0("X", colnames(sample_independent_matrix)[x])
                         }
                         ##### Predictions (AVG spectrum) (class, no probabilities)
-                        if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda") {
+                        if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda" || model_ID == "bayes") {
                             predicted_class_avg <- as.character(predict(model_object, newdata = sample_independent_matrix, type = "raw"))
                         } else {
                             predicted_class_avg <- as.character(predict(model_object, newdata = sample_independent_matrix))
@@ -3311,7 +3402,7 @@ single_model_classification_of_spectra <- function(spectra, model_x, model_name 
                             colnames(sample_clique_matrix)[x] <- paste0("X", colnames(sample_clique_matrix)[x])
                         }
                         ##### Predictions (AVG spectrum) (class, no probabilities)
-                        if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda") {
+                        if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda" || model_ID == "bayes") {
                             predicted_class_avg <- as.character(predict(model_object, newdata = sample_clique_matrix, type = "raw"))
                         } else {
                             predicted_class_avg <- as.character(predict(model_object, newdata = sample_clique_matrix))
@@ -3338,7 +3429,7 @@ single_model_classification_of_spectra <- function(spectra, model_x, model_name 
                             colnames(sample_independent_matrix)[x] <- paste0("X", colnames(sample_independent_matrix)[x])
                         }
                         ##### Predictions (AVG spectrum) (class, no probabilities)
-                        if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda") {
+                        if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda" || model_ID == "bayes") {
                             predicted_class_avg <- as.character(predict(model_object, newdata = sample_independent_matrix, type = "raw"))
                         } else {
                             predicted_class_avg <- as.character(predict(model_object, newdata = sample_independent_matrix))
@@ -3415,7 +3506,7 @@ single_model_classification_of_spectra <- function(spectra, model_x, model_name 
                             colnames(sample_clique_matrix)[x] <- paste0("X", colnames(sample_clique_matrix)[x])
                         }
                         ##### Predictions (class, no probabilities)
-                        if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda") {
+                        if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda" || model_ID == "bayes") {
                             predicted_classes <- as.character(predict(model_object, newdata = sample_clique_matrix, type = "raw"))
                             names(predicted_classes) <- rownames(sample_clique_matrix)
                         } else {
@@ -3501,7 +3592,7 @@ single_model_classification_of_spectra <- function(spectra, model_x, model_name 
                 colnames(final_sample_matrix)[n] <- name
             }
             # Predictions
-            if (model_ID == "rf" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda" || model_ID == "nbc") {
+            if (model_ID == "rf" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda" || model_ID == "nbc" || model_ID == "bayes") {
                 predicted_classes <- as.character(predict(model_object, newdata = final_sample_matrix, type = "raw"))
             } else {
                 predicted_classes <- as.character(predict(model_object, newdata = final_sample_matrix))
@@ -3608,7 +3699,7 @@ single_model_classification_of_spectra <- function(spectra, model_x, model_name 
 # The function outputs a list containing: a matrix with the classification (pixel-by-pixel and/or profile), MS images with the pixel-by-pixel classification, a matrix with the ensemble classification (pixel-by-pixel and/or profile), MS images with the pixel-by-pixel ensemble classification and the plot of the average spectrum with red bars to indicate the signals used for classification.
 # Parallel computation implemented.
 # It outputs NULL values if the classification cannot be performed due to incompatibilities between the model features and the spectral features.
-spectral_classification <- function(spectra_path, filepath_R, model_list_object = "model_list", classification_mode = c("pixel", "profile"), peak_picking_algorithm = "SuperSmoother", deisotope_peaklist = FALSE, preprocessing_parameters = list(mass_range = c(4000,15000), transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL), tof_mode = "linear", allow_parallelization = FALSE, decision_method_ensemble = "majority", vote_weights_ensemble = "equal", pixel_grouping = c("single", "moving window average", "graph", "hca"), moving_window_size = 5, number_of_hca_nodes = 10, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 10, iterations_with_no_change_GA = 5, seed = 12345, classification_mode_graph = c("average spectra", "single spectra clique"), features_to_use_for_graph = c("all", "model"), plot_figures = TRUE, plot_graphs = TRUE, plot_legends = c("sample name", "legend", "plot name"), progress_bar = NULL) {
+spectral_classification <- function(spectra_path, filepath_R, classification_mode = c("pixel", "profile"), peak_picking_algorithm = "SuperSmoother", deisotope_peaklist = FALSE, preprocessing_parameters = list(mass_range = c(4000,15000), transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL), tof_mode = "linear", allow_parallelization = FALSE, decision_method_ensemble = "majority", vote_weights_ensemble = "equal", pixel_grouping = c("single", "moving window average", "graph", "hca"), moving_window_size = 5, number_of_hca_nodes = 10, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 10, iterations_with_no_change_GA = 5, seed = 12345, classification_mode_graph = c("average spectra", "single spectra clique"), features_to_use_for_graph = c("all", "model"), plot_figures = TRUE, plot_graphs = TRUE, plot_legends = c("sample name", "legend", "plot name"), progress_bar = NULL) {
     ### Install and load the required packages
     install_and_load_required_packages(c("MALDIquant", "MALDIquantForeign", "XML", "stats", "parallel", "kernlab", "MASS", "klaR", "pls", "randomForest", "lda", "caret", "nnet"))
     ### Defaults
@@ -3621,9 +3712,9 @@ spectral_classification <- function(spectra_path, filepath_R, model_list_object 
     ### Rename the trim function
     trim_spectra <- get(x = "trim", pos = "package:MALDIquant")
     ### TOF-MODE
-    if (tof_mode == "linear") {
+    if (tof_mode == "linear" || tof_mode == "Linear" || tof_mode == "L") {
         tolerance_ppm <- 2000
-    } else if (tof_mode == "reflector" || tof_mode == "reflectron") {
+    } else if (tof_mode == "reflector" || tof_mode == "reflectron" || tof_mode == "R") {
         tolerance_ppm <- 200
     }
     ### Mass range
@@ -3664,16 +3755,8 @@ spectral_classification <- function(spectra_path, filepath_R, model_list_object 
         ### Import the spectra
         if (!isMassSpectrumList(spectra_path) || !isMassSpectrum(spectra_path)) {
             # Import the spectra (one imzML at a time)
-            if (!is.null(mass_range)) {
-                sample_spectra <- importImzMl(filepath_test_imzml[p], massRange = mass_range)
-            } else {
-                sample_spectra <- importImzMl(filepath_test_imzml[p])
-            }
+            sample_spectra <- import_spectra(filepath = filepath_test_imzml[p], spectra_format = "imzml", mass_range = mass_range, allow_parallelization = allow_parallelization, spectral_names = "name", replace_sample_name_field = TRUE, remove_empty_spectra = TRUE)
         }
-        ### Replace the names of the spectra list with a unique name (for reproducibility purposes, for better identification of spectra)
-        sample_spectra <- replace_sample_name_list(sample_spectra, spectra_format = "imzml", type = "number")
-        ### Replace the sample name (path) with the actual sample name
-        sample_spectra <- replace_sample_name(sample_spectra, spectra_format = "imzml", allow_parallelization = allow_parallelization)
         ### Retrieve the sample name
         sample_name <- sample_spectra[[1]]@metaData$file[1]
         ### Preprocess spectra
@@ -3699,7 +3782,9 @@ spectral_classification <- function(spectra_path, filepath_R, model_list_object 
         # Load the workspace
         load(filepath_R, envir = temporary_environment)
         # Get the models (R objects) from the workspace
-        model_list <- get(model_list_object, pos = temporary_environment)
+        model_list <- get("model_list", pos = temporary_environment)
+        # Load the performance matrix for vote weights
+        model_performance_parameter_matrix <- get("model_performance_parameter_matrix", pos = temporary_environment)
         # Get the list of models
         list_of_models <- names(model_list)
         # For each model...
@@ -3928,7 +4013,7 @@ matrix_splitting_training_test <- function(peaklist, discriminant_feature = "Cla
     ### Now we have randomly selected some patients for the training and some others for the testing, for each class
     ### The indexTraining is integer if there are no classes or one class, and rows are selected randomly
     if (is.integer(index_training)) {
-        training_dataset <- peaklist[index_training,]
+        training_set <- peaklist[index_training,]
         test_dataset <- peaklist[-index_training,]
     } else if (is.list(index_training)) {
         # The indexTraining is a list if there are more than one classes (one element per class), and rows are selected randomly for each class
@@ -3943,13 +4028,13 @@ matrix_splitting_training_test <- function(peaklist, discriminant_feature = "Cla
             test_data_frame_list[[i]] <- class_data_frame_list[[i]][-index_training[[i]],]
         }
         ### Merge the two traininf and test sets
-        training_dataset <- NULL
+        training_set <- NULL
         test_dataset <- NULL
         for (p in 1:length(training_data_frame_list)) {
-            if (is.null(training_dataset)) {
-                training_dataset <- training_data_frame_list[[p]]
+            if (is.null(training_set)) {
+                training_set <- training_data_frame_list[[p]]
             } else {
-                training_dataset <- rbind(training_dataset, training_data_frame_list[[p]])
+                training_set <- rbind(training_set, training_data_frame_list[[p]])
             }
         }
         for (p in 1:length(test_data_frame_list)) {
@@ -3960,7 +4045,7 @@ matrix_splitting_training_test <- function(peaklist, discriminant_feature = "Cla
             }
         }
     }
-    return(list(training_dataset = training_dataset, test_dataset = test_dataset))
+    return(list(training_set = training_set, test_dataset = test_dataset))
 }
 
 
@@ -3976,7 +4061,7 @@ matrix_splitting_training_test <- function(peaklist, discriminant_feature = "Cla
 ############################################################## FEATURE SELECTION
 # This function runs the feature selection algorithm onto the peaklist matrix, returning the peaklist without the redundant/non-informative features, the original peaklist and the list of selected features.
 # The function allows for the use of several feature selection algorithms.
-feature_selection <- function(peaklist, feature_selection_method = "ANOVA", features_to_select = 20, selection_method = "pls", selection_metric = "Kappa", correlation_method = "pearson", correlation_threshold = 0.75, auc_threshold = 0.7, cv_repeats_control = 5, k_fold_cv_control = 10, discriminant_attribute = "Class", non_features = c("Sample", "Class", "THY"), seed = NULL, automatically_select_features = FALSE, generate_plots = TRUE, preprocessing = c("center","scale"), allow_parallelization = FALSE, feature_reranking = FALSE) {
+feature_selection <- function(training_set, feature_selection_method = "ANOVA", features_to_select = 20, selection_method = "pls", selection_metric = "Kappa", correlation_method = "pearson", correlation_threshold = 0.75, auc_threshold = 0.7, cv_repeats_control = 5, k_fold_cv_control = 10, discriminant_attribute = "Class", non_features = c("Sample", "Class", "THY"), seed = NULL, automatically_select_features = FALSE, generate_plots = TRUE, preprocessing = c("center","scale"), allow_parallelization = FALSE, feature_reranking = FALSE) {
     # Load the required libraries
     install_and_load_required_packages(c("stats", "pROC"))
     if (allow_parallelization == TRUE) {
@@ -4003,14 +4088,14 @@ feature_selection <- function(peaklist, feature_selection_method = "ANOVA", feat
     fs_model <- NULL
     ######################################################################### ANOVA
     if (feature_selection_method == "ANOVA") {
-        feature_list <- names(peaklist[,!(names(peaklist) %in% non_features)])
+        feature_list <- names(training_set[,!(names(training_set) %in% non_features)])
         features_ANOVA <- character()
         # For each feature, calculate the impact on the classification capability by fitting an ANOVA
         for (feature in feature_list) {
             # Isolate the peak intensities
-            intensity_vector <- peaklist[, feature]
+            intensity_vector <- training_set[, feature]
             # Compute an ANOVA based upon the discriminant attribute
-            feature_ANOVA <- aov(intensity_vector ~ peaklist[, discriminant_attribute])
+            feature_ANOVA <- aov(intensity_vector ~ training_set[, discriminant_attribute])
             # Extract the p-value
             feature_ANOVA_pvalue <- summary(feature_ANOVA)[[1]]$"Pr(>F)"[1]
             # Keep the feature if with a great impact
@@ -4023,14 +4108,14 @@ feature_selection <- function(peaklist, feature_selection_method = "ANOVA", feat
     }
     ################################################################ KRUSKAL-WALLIS
     if (feature_selection_method == "kruskal" || feature_selection_method == "kruskal-wallis" || feature_selection_method == "Kruskal-Wallis") {
-        feature_list <- names(peaklist[,!(names(peaklist) %in% non_features)])
+        feature_list <- names(training_set[,!(names(training_set) %in% non_features)])
         features_kruskal <- character()
         # For each feature, calculate the impact on the classification capability by fitting an ANOVA
         for (feature in feature_list){
             # Isolate the peak intensities
-            intensity_vector <- peaklist [,feature]
+            intensity_vector <- training_set [,feature]
             # Compute an ANOVA based upon the discriminant attribute
-            feature_kruskal <- kruskal.test(intensity_vector ~ peaklist[,discriminant_attribute])
+            feature_kruskal <- kruskal.test(intensity_vector ~ training_set[,discriminant_attribute])
             # Extract the p-value
             feature_kruskal_pvalue <- feature_kruskal$p.value
             # Keep the feature if with a great impact
@@ -4044,26 +4129,26 @@ feature_selection <- function(peaklist, feature_selection_method = "ANOVA", feat
     ################################################# CORRELATION FEATURE SELECTION
     if (feature_selection_method == "correlation") {
         # Take only the part of the matrix without Class and Sample
-        peaklist_features <- peaklist [,!(names(peaklist) %in% non_features)]
+        training_set_features <- training_set[,!(names(training_set) %in% non_features)]
         # Compute the correlation
-        feature_correlation <- cor(peaklist_features, method = correlation_method)
+        feature_correlation <- cor(training_set_features, method = correlation_method)
         # Output the highly correlated features
         highly_correlated <- findCorrelation(feature_correlation, correlation_threshold)
         # List the highly correlated features
-        highly_correlated_features <- names(peaklist_features[,highly_correlated])
+        highly_correlated_features <- names(training_set_features[,highly_correlated])
         # Features to keep
-        low_correlation_features <- names(peaklist_features[,-highly_correlated])
-        print(paste("The number of selected features is", length(low_correlation_features), "out of", length(peaklist_features)))
+        low_correlation_features <- names(training_set_features[,-highly_correlated])
+        print(paste("The number of selected features is", length(low_correlation_features), "out of", length(training_set_features)))
         # Predictors
         predictors_feature_selection <- low_correlation_features
     }
     #################################################################### IMPORTANCE
     if (feature_selection_method == "importance") {
-        feature_list <- names(peaklist [,!(names(peaklist) %in% non_features)])
+        feature_list <- names(training_set[,!(names(training_set) %in% non_features)])
         # For each feature, calculate the impact on the classification capability
         model_control <- trainControl(method = "repeatedcv", number = k_fold_cv_control, repeats = cv_repeats_control)
         # Compute a model based upon the discriminant attribute
-        feature_model <- train(x = peaklist [,!(names(peaklist) %in% non_features)], y = peaklist[,discriminant_attribute], method = "pls", preProcess = "scale", trControl = model_control)
+        feature_model <- train(x = training_set[,!(names(training_set) %in% non_features)], y = training_set[,discriminant_attribute], method = "pls", preProcess = "scale", trControl = model_control)
         # Estimate variable importance
         feature_importance <- varImp(feature_model, scale = FALSE)
         # Isolate the most important features (rank them according to their importance first!)
@@ -4075,7 +4160,7 @@ feature_selection <- function(peaklist, feature_selection_method = "ANOVA", feat
     }
     ########################################################################### ROC
     if (feature_selection_method == "ROC" || feature_selection_method == "roc") {
-        feature_list <- names(peaklist [,!(names(peaklist) %in% non_features)])
+        feature_list <- names(training_set[,!(names(training_set) %in% non_features)])
         # List of important features
         features_ROC <- character()
         ##### Automatically select features
@@ -4083,7 +4168,7 @@ feature_selection <- function(peaklist, feature_selection_method = "ANOVA", feat
             # For each feature, calculate the impact on the classification capability by computing a ROC
             for (feature in feature_list){
                 # Compute the ROC of the feature
-                feature_ROC <- roc(response = peaklist[,discriminant_attribute], predictor = peaklist[,feature])
+                feature_ROC <- roc(response = training_set[,discriminant_attribute], predictor = training_set[,feature])
                 # Extract the AUC
                 feature_ROC_AUC <- feature_ROC$auc
                 # Keep the feature if with a great impact
@@ -4098,7 +4183,7 @@ feature_selection <- function(peaklist, feature_selection_method = "ANOVA", feat
             names(feature_ROC_vector) <- feature_list
             for (f in 1:length(feature_list)) {
                 # Compute the ROC of the feature
-                feature_ROC <- roc(response = peaklist[,discriminant_attribute], predictor = peaklist[,feature_list[f]])
+                feature_ROC <- roc(response = training_set[,discriminant_attribute], predictor = training_set[,feature_list[f]])
                 # Append the AUC to a vector
                 feature_ROC_vector[f] <- feature_ROC$auc
             }
@@ -4121,14 +4206,14 @@ feature_selection <- function(peaklist, feature_selection_method = "ANOVA", feat
         }
     } else {feature_selection_graphics <- NULL}
     #################################################### Take the selected features
-    peaklist_feature_selection <- peaklist [,predictors_feature_selection]
+    training_set_feature_selection <- training_set[,predictors_feature_selection]
     # Add the non features back
     for (i in 1:length(non_features)) {
-        peaklist_feature_selection <- cbind(peaklist_feature_selection, peaklist[,non_features[i]])
+        training_set_feature_selection <- cbind(training_set_feature_selection, training_set[,non_features[i]])
     }
-    names(peaklist_feature_selection) <- c(as.character(predictors_feature_selection), non_features)
+    names(training_set_feature_selection) <- c(as.character(predictors_feature_selection), non_features)
     # Return the values
-    return(list(peaklist_feature_selection = peaklist_feature_selection, predictors_feature_selection = predictors_feature_selection, feature_selection_graphics = feature_selection_graphics, feature_weights = feature_weights, variable_importance = variable_importance, fs_model_performance = fs_model_performance, fs_model = fs_model))
+    return(list(training_set_feature_selection = training_set_feature_selection, predictors_feature_selection = predictors_feature_selection, feature_selection_graphics = feature_selection_graphics, feature_weights = feature_weights, variable_importance = variable_importance, fs_model_performance = fs_model_performance, fs_model = fs_model))
 }
 
 
@@ -4144,7 +4229,7 @@ feature_selection <- function(peaklist, feature_selection_method = "ANOVA", feat
 ##################### WRAPPER FEATURE SELECTION (RECURSIVE FEATURE ELIMINATION)
 # This function runs the feature selection algorithm onto the peaklist matrix, returning the peaklist without the redundant/non-informative features, the original peaklist and the list of selected features, along with the model used for selecting the features.
 # The function allows for the use of several feature selection algorithms.
-wrapper_rfe <- function(peaklist, features_to_select = 20, selection_method = "pls", selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, discriminant_attribute = "Class", non_features = c("Sample", "Class"), seed = NULL, automatically_select_features = TRUE, generate_plots = TRUE, preprocessing = c("center","scale"), allow_parallelization = FALSE, feature_reranking = TRUE, external_peaklist = NULL, positive_class_cv = "HP") {
+wrapper_rfe <- function(peaklist, features_to_select = 20, selection_method = "pls", selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, discriminant_attribute = "Class", non_features = c("Sample", "Class"), seed = NULL, automatically_select_features = TRUE, generate_plots = TRUE, preprocessing = c("center","scale"), allow_parallelization = FALSE, feature_reranking = TRUE, test_set = NULL, positive_class_cv = "HP") {
     # Load the required libraries
     install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi"))
     # Parallelization
@@ -4229,7 +4314,7 @@ wrapper_rfe <- function(peaklist, features_to_select = 20, selection_method = "p
         }
     }
     ### External validation
-    if (!is.null(external_peaklist) && (is.matrix(external_peaklist) || is.data.frame(external_peaklist))) {
+    if (!is.null(test_set) && (is.matrix(test_set) || is.data.frame(test_set))) {
         ## Use the model to predict the outcome of the testing set (the new data must have only the predictors)
         # Plant the seed only if a specified value is entered
         if (!is.null(seed)) {
@@ -4237,15 +4322,15 @@ wrapper_rfe <- function(peaklist, features_to_select = 20, selection_method = "p
             set.seed(seed)
         }
         # Class prediction (with the same features!)
-        external_peaklist <- external_peaklist[, names(peaklist_feature_selection)]
-        predicted_classes_model <- predict(fs_model, newdata = external_peaklist[,!(names(external_peaklist) %in% non_features)])
+        test_set <- test_set[, names(peaklist_feature_selection)]
+        predicted_classes_model <- predict(fs_model, newdata = test_set[,!(names(test_set) %in% non_features)])
         # Create the outcomes dataframe
-        classification_results_model <- data.frame(Sample = external_peaklist$Sample, Predicted = predicted_classes_model, True = external_peaklist$Class)
+        classification_results_model <- data.frame(Sample = test_set$Sample, Predicted = predicted_classes_model, True = test_set$Class)
         # Generate the confusion matrix to evaluate the performances (take the first class as positive if not specified)
         if (is.null(positive_class_cv) || !(positive_class_cv %in% levels(as.factor(peaklist[, discriminant_attribute])))) {
             positive_class_cv <- levels(as.factor(peaklist[, discriminant_attribute]))[1]
         }
-        model_performance_confusion_matrix <- confusionMatrix(data = predicted_classes_model, reference = external_peaklist$Class, positive = positive_class_cv)
+        model_performance_confusion_matrix <- confusionMatrix(data = predicted_classes_model, reference = test_set$Class, positive = positive_class_cv, mode = "everything", dnn = c("Predicted", "Actual"))
         ## ROC analysis
         model_roc <- list()
         roc_curve <- roc(response = as.numeric(classification_results_model$True), predictor = as.numeric(classification_results_model$Predicted))
@@ -4297,9 +4382,9 @@ wrapper_rfe <- function(peaklist, features_to_select = 20, selection_method = "p
 ##################### EMBEDDED FEATURE SELECTION (RECURSIVE FEATURE ELIMINATION)
 # This function runs the feature selection algorithm onto the peaklist matrix, returning the peaklist without the redundant/non-informative features, the original peaklist and the list of selected features, along with the model used for selecting the features.
 # The function allows for the use of several feature selection algorithms.
-embedded_rfe <- function(peaklist, features_to_select = 20, selection_method = "pls", model_tuning = c("embedded", "after", "none"), model_tune_grid = list(), selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, discriminant_attribute = "Class", non_features = c("Sample", "Class"), seed = NULL, automatically_select_features = TRUE, generate_plots = TRUE, preprocessing = c("center","scale"), allow_parallelization = FALSE, feature_reranking = TRUE, external_peaklist = NULL, positive_class_cv = "HP") {
+embedded_rfe <- function(training_set, features_to_select = 20, selection_method = "pls", model_tuning = c("embedded", "after", "none"), model_tune_grid = list(ncomp = 1:5), selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, discriminant_attribute = "Class", non_features = c("Sample", "Class"), seed = NULL, automatically_select_features = TRUE, generate_plots = TRUE, preprocessing = c("center","scale"), allow_parallelization = FALSE, feature_reranking = TRUE, test_set = NULL, positive_class_cv = NULL) {
     # Load the required libraries
-    install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi"))
+    install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi", "lda"))
     # Parallelization
     if (allow_parallelization == TRUE) {
         ### PARALLEL BACKEND
@@ -4322,6 +4407,9 @@ embedded_rfe <- function(peaklist, features_to_select = 20, selection_method = "
     feature_weights <- NULL
     variable_importance <- NULL
     fs_model_performance <- NULL
+    cross_validation_confusion_matrix <- NULL
+    cross_validation_confusion_matrix_df <- NULL
+    model_cv_performance_parameter_list <- list()
     ### The simulation will fit models with subset sizes: the subset size is the number of predictors to use
     if (automatically_select_features == TRUE) {
         # Define the feature subset sizes
@@ -4337,47 +4425,81 @@ embedded_rfe <- function(peaklist, features_to_select = 20, selection_method = "
     }
     ### Define the control function of the RFE
     rfe_ctrl <- rfeControl(functions = caretFuncs, method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, saveDetails = TRUE, allowParallel = allow_parallelization, rerank = feature_reranking, seeds = NULL)
-    ### Run the RFE (model tuning during feature selection or after)
-    if (!is.null(model_tuning) && model_tuning == "embedded" && (!is.null(model_tune_grid) || (is.list(model_tune_grid) && length(model_tune_grid) > 0))) {
-        rfe_model <- rfe(x = peaklist[, !(names(peaklist) %in% non_features)], y = peaklist[,discriminant_attribute], sizes = subset_sizes, rfeControl = rfe_ctrl, method = selection_method, metric = selection_metric, preProcess = preprocessing, tuneGrid = expand.grid(model_tune_grid))
+    ### Model tuning is performed during feature selection (best choice)
+    if (!is.null(model_tuning) && model_tuning == "embedded" && is.list(model_tune_grid)) {
+        # Run the RFE
+        rfe_model <- rfe(x = training_set[, !(names(training_set) %in% non_features)], y = training_set[,discriminant_attribute], sizes = subset_sizes, rfeControl = rfe_ctrl, method = selection_method, metric = selection_metric, preProcess = preprocessing, tuneGrid = expand.grid(model_tune_grid))
+        # Model performances
+        if (selection_metric == "kappa" || selection_metric == "Kappa") {
+            fs_model_performance <- as.numeric(max(rfe_model$fit$results$Kappa, na.rm = TRUE))
+            names(fs_model_performance) <- "Kappa"
+        } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
+            fs_model_performance <- as.numeric(max(rfe_model$fit$results$Accuracy, na.rm = TRUE))
+            names(fs_model_performance) <- "Accuracy"
+        }
     } else if (is.null(model_tuning) || model_tuning == "after" || (model_tuning == "no" || model_tuning == "none")) {
-        rfe_model <- rfe(x = peaklist[, !(names(peaklist) %in% non_features)], y = peaklist[,discriminant_attribute], sizes = subset_sizes, rfeControl = rfe_ctrl, method = selection_method, metric = selection_metric, preProcess = preprocessing)
+        ### Tuning will be performed afterwards with only the features selected by RFE
+        # Extract a single value of tuning, otherwise the model will undergo tuning automatically in R
+        single_parameter_tune_grid <- list()
+        for (l in 1:length(model_tune_grid)) {
+            single_parameter_tune_grid[[names(model_tune_grid)[l]]] <- model_tune_grid[[names(model_tune_grid)[l]]][1]
+        }
+        # Run the RFE
+        rfe_model <- rfe(x = training_set[, !(names(training_set) %in% non_features)], y = training_set[,discriminant_attribute], sizes = subset_sizes, rfeControl = rfe_ctrl, method = selection_method, metric = selection_metric, preProcess = preprocessing, tuneGrid = expand.grid(single_parameter_tune_grid))
+        # Model performances
+        if (selection_metric == "kappa" || selection_metric == "Kappa") {
+            fs_model_performance <- as.numeric(max(rfe_model$fit$results$Kappa, na.rm = TRUE))
+            names(fs_model_performance) <- "Kappa"
+        } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
+            fs_model_performance <- as.numeric(max(rfe_model$fit$results$Accuracy, na.rm = TRUE))
+            names(fs_model_performance) <- "Accuracy"
+        }
     }
     # Extract the model
-    fs_model <- rfe_model$fit$finalModel
+    fs_model <- rfe_model$fit
+    # Extract the model performance parameters
+    model_cv_performance_parameters <- extract_bayesian_probabilities(training_set = training_set, model_object = fs_model, discriminant_attribute = discriminant_attribute, non_features = non_features, type_of_analysis = "cross validation", test_set = NULL)
+    model_cv_performance_parameter_list <- model_cv_performance_parameters$model_cv_performance_parameter_list
+    cross_validation_confusion_matrix <- model_cv_performance_parameters$cross_validation_confusion_matrix
+    cross_validation_confusion_matrix_df <- model_cv_performance_parameters$cross_validation_confusion_matrix_df
     # Variable importance
-    variable_importance <- varImp(rfe_model$fit)
+    variable_importance <- varImp(rfe_model$fit, scale = TRUE)
     # Feature weights
-    feature_weights <- rfe_model$fit
-    # Model performances
-    if (selection_metric == "kappa" || selection_metric == "Kappa") {
-        fs_model_performance <- as.numeric(max(rfe_model$fit$results$Kappa, na.rm = TRUE))
-        names(fs_model_performance) <- "Kappa"
-    } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
-        fs_model_performance <- as.numeric(max(rfe_model$fit$results$Accuracy, na.rm = TRUE))
-        names(fs_model_performance) <- "Accuracy"
-    }
+    feature_weights <- varImp(rfe_model$fit, scale = FALSE)
     # Output the best predictors after the RFE
     if (automatically_select_features == TRUE) {
-        predictors_rfe <- predictors(rfe_model)
+        predictors_feature_selection <- predictors(rfe_model$fit)
+        if (is.na(all(predictors_feature_selection))) {
+            predictors_feature_selection <- predictors(rfe_model)
+        }
     } else {
-        predictors_rfe <- predictors(rfe_model)[1:features_to_select]
+        predictors_feature_selection <- predictors(rfe_model$fit)[1:features_to_select]
+        if (length(predictors_feature_selection[is.na(predictors_feature_selection)]) > 0) {
+            predictors_feature_selection <- predictors(rfe_model)[1:features_to_select]
+        }
     }
-    # Predictors
-    predictors_feature_selection <- predictors_rfe
     ##### Plots
     if (generate_plots == TRUE) {
-        feature_selection_graphics <- plot(rfe_model, type = c("g","o"))
+        feature_selection_graphics <- NULL
+        try({
+            feature_selection_graphics <- plot(rfe_model, type = c("g","o"))
+        }, silent = TRUE)
+        model_tuning_graphics <- NULL
+        try({
+            # Model tuning plot will fail if no tuning has been performed
+            model_tuning_graphics <- plot(rfe_model$fit, type = c("g","o"))
+        }, silent = TRUE)
     } else {
         feature_selection_graphics <- NULL
+        model_tuning_graphics <- NULL
     }
     #### Take the selected features
-    peaklist_feature_selection <- peaklist[, predictors_feature_selection]
+    training_set_feature_selection <- training_set[, predictors_feature_selection]
     ### Add the non features back
     for (i in 1:length(non_features)) {
-        peaklist_feature_selection <- cbind(peaklist_feature_selection, peaklist[, non_features[i]])
+        training_set_feature_selection <- cbind(training_set_feature_selection, training_set[, non_features[i]])
     }
-    names(peaklist_feature_selection) <- c(as.character(predictors_feature_selection), non_features)
+    names(training_set_feature_selection) <- c(as.character(predictors_feature_selection), non_features)
     #### Tune the model after the features have been selected
     if ((!is.null(model_tuning) && model_tuning == "after") && (!is.null(model_tune_grid) || (is.list(model_tune_grid) && length(model_tune_grid) > 0))) {
         # Make the randomness reproducible
@@ -4387,7 +4509,16 @@ embedded_rfe <- function(peaklist, features_to_select = 20, selection_method = "
         # Define the control function
         train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL)
         # Define the model tuned
-        fs_model <- train(x = peaklist_feature_selection[, !(names(peaklist_feature_selection) %in% non_features)], y = peaklist_feature_selection[, discriminant_attribute], method = selection_method, preProcess = preprocessing, tuneGrid = expand.grid(model_tune_grid), trControl = train_ctrl, metric = selection_metric)
+        fs_model <- train(x = training_set_feature_selection[, !(names(training_set_feature_selection) %in% non_features)], y = training_set_feature_selection[, discriminant_attribute], method = selection_method, preProcess = preprocessing, tuneGrid = expand.grid(model_tune_grid), trControl = train_ctrl, metric = selection_metric)
+        # Plots
+        if (generate_plots == TRUE) {
+            model_tuning_graphics <- NULL
+            try({
+                model_tuning_graphics <- plot(fs_model, type = c("g","o"))
+            }, silent = TRUE)
+        } else {
+            model_tuning_graphics <- NULL
+        }
         # Model performances
         if (selection_metric == "kappa" || selection_metric == "Kappa") {
             fs_model_performance <- as.numeric(max(fs_model$results$Kappa, na.rm = TRUE))
@@ -4404,7 +4535,7 @@ embedded_rfe <- function(peaklist, features_to_select = 20, selection_method = "
         }
     }
     ### External validation
-    if (!is.null(external_peaklist) && (is.matrix(external_peaklist) || is.data.frame(external_peaklist))) {
+    if (!is.null(test_set) && (is.matrix(test_set) || is.data.frame(test_set))) {
         ## Use the model to predict the outcome of the testing set (the new data must have only the predictors)
         # Plant the seed only if a specified value is entered
         if (!is.null(seed)) {
@@ -4412,24 +4543,27 @@ embedded_rfe <- function(peaklist, features_to_select = 20, selection_method = "
             set.seed(seed)
         }
         # Class prediction (with the same features!)
-        external_peaklist <- external_peaklist[, names(peaklist_feature_selection)]
-        predicted_classes_model <- predict(fs_model, newdata = external_peaklist[,!(names(external_peaklist) %in% non_features)])
+        test_set <- test_set[, names(training_set_feature_selection)]
+        predicted_classes_model <- predict(fs_model, newdata = test_set[,!(names(test_set) %in% non_features)])
+        # Determine the performance parameters
+        model_external_performance_parameters <- extract_bayesian_probabilities(training_set = training_set_feature_selection, model_object = fs_model, discriminant_attribute = discriminant_attribute, non_features = non_features, type_of_analysis = "external validation", test_set = test_set)
+        model_external_performance_parameter_list <- model_external_performance_parameters$model_external_performance_parameter_list
+        external_validation_confusion_matrix <- model_external_performance_parameters$external_validation_confusion_matrix
+        external_validation_confusion_matrix_df <- model_external_performance_parameters$external_validation_confusion_matrix_df
         # Create the outcomes dataframe
-        classification_results_model <- data.frame(Sample = external_peaklist$Sample, Predicted = predicted_classes_model, True = external_peaklist$Class)
-        # Generate the confusion matrix to evaluate the performances (take the first class as positive if not specified)
-        if (is.null(positive_class_cv) || !(positive_class_cv %in% levels(as.factor(peaklist[, discriminant_attribute])))) {
-            positive_class_cv <- levels(as.factor(peaklist[, discriminant_attribute]))[1]
-        }
-        model_performance_confusion_matrix <- confusionMatrix(data = predicted_classes_model, reference = external_peaklist$Class, positive = positive_class_cv)
+        classification_results_model <- data.frame(Sample = rownames(test_set), Predicted = predicted_classes_model, True = test_set[, discriminant_attribute])
         ## ROC analysis
         model_roc <- list()
         roc_curve <- roc(response = as.numeric(classification_results_model$True), predictor = as.numeric(classification_results_model$Predicted))
         model_roc[[1]] <- roc_curve$auc
         if (generate_plots == TRUE) {
-            plot(roc_curve)
-            roc_legend <- paste("ROC area under the curve:", roc_curve$auc)
-            legend("bottomright", legend = roc_legend, xjust = 0.5, yjust = 0.5)
-            model_roc[[2]] <- recordPlot()
+            model_roc[[2]] <- NULL
+            try({
+                plot(roc_curve)
+                roc_legend <- paste("ROC area under the curve:", roc_curve$auc)
+                legend("bottomright", legend = roc_legend, xjust = 0.5, yjust = 0.5)
+                model_roc[[2]] <- recordPlot()
+            }, silent = TRUE)
         } else {
             model_roc[[2]] <- NULL
         }
@@ -4445,18 +4579,23 @@ embedded_rfe <- function(peaklist, features_to_select = 20, selection_method = "
         }
         classification_pie <- c(correctly_classified, misclassified)
         if (generate_plots == TRUE) {
-            pie(x = classification_pie, labels = c("Correctly classified", "Misclassified"), col = c("green","blue"))
-            pie_chart_classification <- recordPlot()
+            pie_chart_classification <- NULL
+            try({
+                pie(x = classification_pie, labels = c("Correctly classified", "Misclassified"), col = c("green","blue"))
+                pie_chart_classification <- recordPlot()
+            }, silent = TRUE)
         } else {
             pie_chart_classification <- NULL
         }
     } else {
-        model_performance_confusion_matrix <- NULL
+        external_validation_confusion_matrix <- NULL
+        external_validation_confusion_matrix_df <- NULL
         pie_chart_classification <- NULL
         model_roc <- NULL
+        model_external_performance_parameter_list <- list()
     }
     ### Return the values
-    return(list(peaklist_feature_selection = peaklist_feature_selection, predictors_feature_selection = predictors_feature_selection, feature_selection_graphics = feature_selection_graphics, feature_weights = feature_weights, variable_importance = variable_importance, fs_model_performance = fs_model_performance, feature_selection_model = fs_model, class_list = levels(as.factor(peaklist[, discriminant_attribute])), pie_chart_classification = pie_chart_classification, model_roc = model_roc, model_performance_confusion_matrix = model_performance_confusion_matrix))
+    return(list(training_set_feature_selection = training_set_feature_selection, predictors_feature_selection = predictors_feature_selection, feature_selection_graphics = feature_selection_graphics, model_tuning_graphics = model_tuning_graphics, feature_weights = feature_weights, variable_importance = variable_importance, fs_model_performance = fs_model_performance, feature_selection_model = fs_model, class_list = levels(as.factor(training_set[, discriminant_attribute])), pie_chart_classification = pie_chart_classification, model_roc = model_roc, external_validation_confusion_matrix = external_validation_confusion_matrix, external_validation_confusion_matrix_df = external_validation_confusion_matrix_df, cross_validation_confusion_matrix = cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = model_cv_performance_parameter_list, model_external_performance_parameter_list = model_external_performance_parameter_list))
 }
 
 
@@ -4472,9 +4611,9 @@ embedded_rfe <- function(peaklist, features_to_select = 20, selection_method = "
 ########### AUTOMATED EMBEDDED FEATURE SELECTION (RECURSIVE FEATURE ELIMINATION)
 # This function iteratively runs the embedded-rfe feature selection function onto the same input objects as that function, in order to find the best combination of parameters (preprocessing, feature reranking) for the feature selection. It returns the same elements of the embedded_rfe function, but the best chosen after trying all of the parameter combinations.
 # The function allows for the use of several feature selection algorithms.
-automated_embedded_rfe <- function(peaklist, features_to_select = 20, selection_method = "pls", model_tuning = c("embedded", "after"), model_tune_grid = data.frame(ncomp = 1:5), selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, discriminant_attribute = "Class", non_features = c("Sample", "Class"), seed = NULL, automatically_select_features = TRUE, generate_plots = TRUE, preprocessing = c("center","scale"), allow_parallelization = FALSE, feature_reranking = FALSE, external_peaklist = NULL, positive_class_cv = "HP", try_combination_of_parameters = TRUE) {
+automated_embedded_rfe <- function(training_set, features_to_select = 20, selection_method = "pls", model_tuning = c("embedded", "after"), model_tune_grid = list(ncomp = 1:5), selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, discriminant_attribute = "Class", non_features = c("Sample", "Class"), seed = NULL, automatically_select_features = TRUE, generate_plots = TRUE, preprocessing = c("center","scale"), allow_parallelization = FALSE, feature_reranking = FALSE, test_set = NULL, positive_class_cv = NULL, try_combination_of_parameters = TRUE) {
     # Load the required libraries
-    install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi"))
+    install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi", "lda"))
     if (try_combination_of_parameters == TRUE) {
         ### Establish the combination of parameters (preprocessing + feature reranking) to establish the best model
         # Inizialize the output of combination of parameters
@@ -4494,7 +4633,7 @@ automated_embedded_rfe <- function(peaklist, features_to_select = 20, selection_
         best_rfe_model <- NULL
         # Run every combination, storing the result if good
         for (comb in 1:length(parameter_combination)) {
-            single_rfe_model <- embedded_rfe(peaklist, features_to_select = features_to_select, selection_method = selection_method, model_tuning = model_tuning, model_tune_grid = model_tune_grid, selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = parameter_combination[[comb]]$preprocessing, allow_parallelization = allow_parallelization, feature_reranking = parameter_combination[[comb]]$feature_reranking, external_peaklist = external_peaklist, positive_class_cv = positive_class_cv)
+            single_rfe_model <- embedded_rfe(training_set, features_to_select = features_to_select, selection_method = selection_method, model_tuning = model_tuning, model_tune_grid = model_tune_grid, selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = parameter_combination[[comb]]$preprocessing, allow_parallelization = allow_parallelization, feature_reranking = parameter_combination[[comb]]$feature_reranking, test_set = test_set, positive_class_cv = positive_class_cv)
             ### Check (and store) the performance values and the model
             if (is.null(best_model_performance) || single_rfe_model$fs_model_performance > best_model_performance) {
                 best_model_performance <- single_rfe_model$fs_model_performance
@@ -4503,7 +4642,7 @@ automated_embedded_rfe <- function(peaklist, features_to_select = 20, selection_
         }
     } else {
         ### NO combinations, run the single function...
-        best_rfe_model <- embedded_rfe(peaklist, features_to_select = features_to_select, selection_method = selection_method, model_tuning = model_tuning, model_tune_grid = model_tune_grid, selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, external_peaklist = external_peaklist, positive_class_cv = positive_class_cv)
+        best_rfe_model <- embedded_rfe(training_set, features_to_select = features_to_select, selection_method = selection_method, model_tuning = model_tuning, model_tune_grid = model_tune_grid, selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, test_set = test_set, positive_class_cv = positive_class_cv)
     }
     ### Return the values
     return(best_rfe_model)
@@ -4523,7 +4662,7 @@ automated_embedded_rfe <- function(peaklist, features_to_select = 20, selection_
 # The function takes a peaklist as input (samples/spectra as rows and aligned peaks as columns) and performs feature selection coupled with model training and tuning according to the input parameters. It can automatically select the number of features according to the model performances in the tuning phase or select a fix number of features in the tuning phase: corss-validation is used to adjust the tuning parameters. The best model is selected and returned.
 # Several models undergo training/tuning with a selected number of features (each model selects its own).
 # The function returns a list of models (with the model object, the model ID, the performances, the outcome list, the class list and the features), a matrix listing the cross-validation performances for each model and the feature list (common and for each model).
-model_ensemble_embedded_fs <- function(peaklist, features_to_select = 20, common_features_to_select = 0, model_tuning = "after", selection_metric = "Accuracy", discriminant_attribute = "Class", non_features = c("Sample", "Class"), seed = 12345, automatically_select_features = FALSE, generate_plots = TRUE, cv_repeats_control = 5, k_fold_cv_control = 3, preprocessing = c("center", "scale"), allow_parallelization = TRUE, feature_reranking = FALSE, try_combination_of_parameters = FALSE, outcome_list = c("benign", "malignant"), progress_bar = NULL) {
+model_ensemble_embedded_fs <- function(training_set, features_to_select = 20, common_features_to_select = 0, model_tuning = "after", selection_metric = "Accuracy", discriminant_attribute = "Class", non_features = c("Sample", "Class"), seed = 12345, automatically_select_features = FALSE, generate_plots = TRUE, cv_repeats_control = 5, k_fold_cv_control = 3, preprocessing = c("center", "scale"), allow_parallelization = TRUE, feature_reranking = FALSE, try_combination_of_parameters = FALSE, outcome_list = c("benign", "malignant"), progress_bar = NULL) {
     # Progress bar (from 0 to 90 % is the feature selection and model tuning, the last 10% is the generation of the model list for the RData file: round the percentage values manually!)
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
         install_and_load_required_packages("tcltk")
@@ -4539,78 +4678,124 @@ model_ensemble_embedded_fs <- function(peaklist, features_to_select = 20, common
         setTxtProgressBar(fs_progress_bar, value = 0, title = NULL, label = "Partial Least Squares")
     }
     # Partial Least Squares
-    pls_model_rfe <- automated_embedded_rfe(peaklist = peaklist, features_to_select = features_to_select, selection_method = "pls", model_tuning = model_tuning, model_tune_grid = data.frame(ncomp = 1:5), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
+    pls_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "pls", model_tuning = model_tuning, model_tune_grid = list(ncomp = 1:5), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
     pls_model <- pls_model_rfe$feature_selection_model
     pls_model_features <- pls_model_rfe$predictors_feature_selection
     pls_model_class_list <- pls_model_rfe$class_list
     pls_model_ID <- "pls"
     pls_model_performance <- pls_model_rfe$fs_model_performance
+    pls_model_cross_validation_confusion_matrix <- pls_model_rfe$cross_validation_confusion_matrix
+    pls_model_cross_validation_confusion_matrix_df <- pls_model_rfe$cross_validation_confusion_matrix_df
+    pls_model_cv_performance_parameter_list <- pls_model_rfe$model_cv_performance_parameter_list
+    pls_model_external_validation_confusion_matrix <- pls_model_rfe$external_validation_confusion_matrix
+    pls_model_external_validation_confusion_matrix_df <- pls_model_rfe$external_validation_confusion_matrix_df
+    pls_model_external_performance_parameter_list <- pls_model_rfe$model_external_performance_parameter_list
     print("Partial Least Squares")
-    print(pls_model_features)
     print(pls_model_performance)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
-        setTkProgressBar(fs_progress_bar, value = 0.12, title = NULL, label = "RBF Support Vector Machines")
+        setTkProgressBar(fs_progress_bar, value = 0.10, title = NULL, label = "RBF Support Vector Machines")
     } else if (!is.null(progress_bar) && progress_bar == "txt") {
-        setTxtProgressBar(fs_progress_bar, value = 0.12, title = NULL, label = "RBF Support Vector Machines")
+        setTxtProgressBar(fs_progress_bar, value = 0.10, title = NULL, label = "RBF Support Vector Machines")
     }
     # Support Vector Machine (with Radial Basis Kernel function)
-    svmRadial_model_rfe <- automated_embedded_rfe(peaklist = peaklist, features_to_select = features_to_select, selection_method = "svmRadial", model_tuning = model_tuning, model_tune_grid = list(sigma = 10^(-5:5), C = 10^(-5:5)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
+    svmRadial_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "svmRadial", model_tuning = model_tuning, model_tune_grid = list(sigma = 10^(-3:3), C = 10^(-3:3)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
     svmRadial_model <- svmRadial_model_rfe$feature_selection_model
     svmRadial_model_features <- svmRadial_model_rfe$predictors_feature_selection
     svmRadial_model_class_list <- svmRadial_model_rfe$class_list
     svmRadial_model_ID <- "svm"
     svmRadial_model_performance <- svmRadial_model_rfe$fs_model_performance
-    print("Support Vector Machine (with Radial Basis Kernel function)")
-    print(svmRadial_model_features)
+    svmRadial_model_cross_validation_confusion_matrix <- svmRadial_model_rfe$cross_validation_confusion_matrix
+    svmRadial_model_cross_validation_confusion_matrix_df <- svmRadial_model_rfe$cross_validation_confusion_matrix_df
+    svmRadial_model_cv_performance_parameter_list <- svmRadial_model_rfe$model_cv_performance_parameter_list
+    svmRadial_model_external_validation_confusion_matrix <- svmRadial_model_rfe$external_validation_confusion_matrix
+    svmRadial_model_external_validation_confusion_matrix_df <- svmRadial_model_rfe$external_validation_confusion_matrix_df
+    svmRadial_model_external_performance_parameter_list <- svmRadial_model_rfe$model_external_performance_parameter_list
+    print("Support Vector Machines (with Radial Basis Kernel function)")
     print(svmRadial_model_performance)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
-        setTkProgressBar(fs_progress_bar, value = 0.24, title = NULL, label = "Polynomial Support Vector Machines")
+        setTkProgressBar(fs_progress_bar, value = 0.20, title = NULL, label = "Polynomial Support Vector Machines")
     } else if (!is.null(progress_bar) && progress_bar == "txt") {
-        setTxtProgressBar(fs_progress_bar, value = 0.24, title = NULL, label = "Polynomial Support Vector Machines")
+        setTxtProgressBar(fs_progress_bar, value = 0.20, title = NULL, label = "Polynomial Support Vector Machines")
     }
     # Support Vector Machine (with Polynomial Kernel function)
-    svmPoly_model_rfe <- automated_embedded_rfe(peaklist = peaklist, features_to_select = features_to_select, selection_method = "svmPoly", model_tuning = model_tuning, model_tune_grid = list(C = 10^(-5:5), degree = 1:5, scale = 1), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
+    svmPoly_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "svmPoly", model_tuning = model_tuning, model_tune_grid = list(C = 10^(-3:3), degree = 1:5, scale = 1), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
     svmPoly_model <- svmPoly_model_rfe$feature_selection_model
     svmPoly_model_features <- svmPoly_model_rfe$predictors_feature_selection
     svmPoly_model_class_list <- svmPoly_model_rfe$class_list
     svmPoly_model_ID <- "svm"
     svmPoly_model_performance <- svmPoly_model_rfe$fs_model_performance
-    print("Support Vector Machine (with Polynomial Kernel function)")
-    print(svmPoly_model_features)
+    svmPoly_model_cross_validation_confusion_matrix <- svmPoly_model_rfe$cross_validation_confusion_matrix
+    svmPoly_model_cross_validation_confusion_matrix_df <- svmPoly_model_rfe$cross_validation_confusion_matrix_df
+    svmPoly_model_cv_performance_parameter_list <- svmPoly_model_rfe$model_cv_performance_parameter_list
+    svmPoly_model_external_validation_confusion_matrix <- svmPoly_model_rfe$external_validation_confusion_matrix
+    svmPoly_model_external_validation_confusion_matrix_df <- svmPoly_model_rfe$external_validation_confusion_matrix_df
+    svmPoly_model_external_performance_parameter_list <- svmPoly_model_rfe$model_external_performance_parameter_list
+    print("Support Vector Machines (with Polynomial Kernel function)")
     print(svmPoly_model_performance)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
-        setTkProgressBar(fs_progress_bar, value = 0.36, title = NULL, label = "Random Forest")
+        setTkProgressBar(fs_progress_bar, value = 0.30, title = NULL, label = "Linear Support Vector Machines")
     } else if (!is.null(progress_bar) && progress_bar == "txt") {
-        setTxtProgressBar(fs_progress_bar, value = 0.36, title = NULL, label = "Random Forest")
+        setTxtProgressBar(fs_progress_bar, value = 0.30, title = NULL, label = "Linear Support Vector Machines")
+    }
+    # Support Vector Machine (with Linear Kernel function)
+    svmLinear_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "svmLinear", model_tuning = model_tuning, model_tune_grid = list(C = 10^(-3:3)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
+    svmLinear_model <- svmLinear_model_rfe$feature_selection_model
+    svmLinear_model_features <- svmLinear_model_rfe$predictors_feature_selection
+    svmLinear_model_class_list <- svmLinear_model_rfe$class_list
+    svmLinear_model_ID <- "svm"
+    svmLinear_model_performance <- svmLinear_model_rfe$fs_model_performance
+    svmLinear_model_cross_validation_confusion_matrix <- svmLinear_model_rfe$cross_validation_confusion_matrix
+    svmLinear_model_cross_validation_confusion_matrix_df <- svmLinear_model_rfe$cross_validation_confusion_matrix_df
+    svmLinear_model_cv_performance_parameter_list <- svmLinear_model_rfe$model_cv_performance_parameter_list
+    svmLinear_model_external_validation_confusion_matrix <- svmLinear_model_rfe$external_validation_confusion_matrix
+    svmLinear_model_external_validation_confusion_matrix_df <- svmLinear_model_rfe$external_validation_confusion_matrix_df
+    svmLinear_model_external_performance_parameter_list <- svmLinear_model_rfe$model_external_performance_parameter_list
+    print("Support Vector Machines (with Linear Kernel function)")
+    print(svmLinear_model_performance)
+    # Progress bar
+    if (!is.null(progress_bar) && progress_bar == "tcltk") {
+        setTkProgressBar(fs_progress_bar, value = 0.40, title = NULL, label = "Random Forest")
+    } else if (!is.null(progress_bar) && progress_bar == "txt") {
+        setTxtProgressBar(fs_progress_bar, value = 0.40, title = NULL, label = "Random Forest")
     }
     # Random Forest
-    rf_model_rfe <- automated_embedded_rfe(peaklist = peaklist, features_to_select = features_to_select, selection_method = "rf", model_tuning = model_tuning, model_tune_grid = list(mtry = seq(1,5, by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
+    rf_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "rf", model_tuning = model_tuning, model_tune_grid = list(mtry = seq(1,5, by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
     rf_model <- rf_model_rfe$feature_selection_model
     rf_model_features <- rf_model_rfe$predictors_feature_selection
     rf_model_class_list <- rf_model_rfe$class_list
     rf_model_ID <- "rf"
     rf_model_performance <- rf_model_rfe$fs_model_performance
+    rf_model_cross_validation_confusion_matrix <- rf_model_rfe$cross_validation_confusion_matrix
+    rf_model_cross_validation_confusion_matrix_df <- rf_model_rfe$cross_validation_confusion_matrix_df
+    rf_model_cv_performance_parameter_list <- rf_model_rfe$model_cv_performance_parameter_list
+    rf_model_external_validation_confusion_matrix <- rf_model_rfe$external_validation_confusion_matrix
+    rf_model_external_validation_confusion_matrix_df <- rf_model_rfe$external_validation_confusion_matrix_df
+    rf_model_external_performance_parameter_list <- rf_model_rfe$model_external_performance_parameter_list
     print("Random Forest")
-    print(rf_model_features)
     print(rf_model_performance)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
-        setTkProgressBar(fs_progress_bar, value = 0.48, title = NULL, label = "Naive Bayes Classifier")
+        setTkProgressBar(fs_progress_bar, value = 0.50, title = NULL, label = "Naive Bayes Classifier")
     } else if (!is.null(progress_bar) && progress_bar == "txt") {
-        setTxtProgressBar(fs_progress_bar, value = 0.48, title = NULL, label = "Naive Bayes Classifier")
+        setTxtProgressBar(fs_progress_bar, value = 0.50, title = NULL, label = "Naive Bayes Classifier")
     }
     # Naive Bayes Classifier
-    nbc_model_rfe <- automated_embedded_rfe(peaklist = peaklist, features_to_select = features_to_select, selection_method = "nb", model_tuning = model_tuning, model_tune_grid = data.frame(fL = seq(0, 1, by = 0.2), usekernel = c(TRUE, FALSE), adjust = c(TRUE, FALSE)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
+    nbc_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "nb", model_tuning = model_tuning, model_tune_grid = list(fL = seq(0, 1, by = 0.25), usekernel = c(TRUE, FALSE), adjust = c(TRUE, FALSE)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
     nbc_model <- nbc_model_rfe$feature_selection_model
     nbc_model_features <- nbc_model_rfe$predictors_feature_selection
     nbc_model_class_list <- nbc_model_rfe$class_list
-    nbc_model_ID <- "nbc"
+    nbc_model_ID <- "bayes"
     nbc_model_performance <- nbc_model_rfe$fs_model_performance
+    nbc_model_cross_validation_confusion_matrix <- nbc_model_rfe$cross_validation_confusion_matrix
+    nbc_model_cross_validation_confusion_matrix_df <- nbc_model_rfe$cross_validation_confusion_matrix_df
+    nbc_model_cv_performance_parameter_list <- nbc_model_rfe$model_cv_performance_parameter_list
+    nbc_model_external_validation_confusion_matrix <- nbc_model_rfe$external_validation_confusion_matrix
+    nbc_model_external_validation_confusion_matrix_df <- nbc_model_rfe$external_validation_confusion_matrix_df
+    nbc_model_external_performance_parameter_list <- nbc_model_rfe$model_external_performance_parameter_list
     print("Naive Bayes Classifier")
-    print(nbc_model_features)
     print(nbc_model_performance)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
@@ -4619,31 +4804,62 @@ model_ensemble_embedded_fs <- function(peaklist, features_to_select = 20, common
         setTxtProgressBar(fs_progress_bar, value = 0.60, title = NULL, label = "k-Nearest Neighbor")
     }
     # K-Nearest Neighbor
-    knn_model_rfe <- automated_embedded_rfe(peaklist = peaklist, features_to_select = features_to_select, selection_method = "knn", model_tuning = model_tuning, model_tune_grid = list(k = seq(1,15, by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
+    knn_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "knn", model_tuning = model_tuning, model_tune_grid = list(k = seq(3,15, by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
     knn_model <- knn_model_rfe$feature_selection_model
     knn_model_features <- knn_model_rfe$predictors_feature_selection
     knn_model_class_list <- knn_model_rfe$class_list
     knn_model_ID <- "knn"
     knn_model_performance <- knn_model_rfe$fs_model_performance
+    knn_model_cross_validation_confusion_matrix <- knn_model_rfe$cross_validation_confusion_matrix
+    knn_model_cross_validation_confusion_matrix_df <- knn_model_rfe$cross_validation_confusion_matrix_df
+    knn_model_cv_performance_parameter_list <- knn_model_rfe$model_cv_performance_parameter_list
+    knn_model_external_validation_confusion_matrix <- knn_model_rfe$external_validation_confusion_matrix
+    knn_model_external_validation_confusion_matrix_df <- knn_model_rfe$external_validation_confusion_matrix_df
+    knn_model_external_performance_parameter_list <- knn_model_rfe$model_external_performance_parameter_list
     print("k-Nearest Neighbor")
-    print(knn_model_features)
     print(knn_model_performance)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
-        setTkProgressBar(fs_progress_bar, value = 0.72, title = NULL, label = "Neural Network")
+        setTkProgressBar(fs_progress_bar, value = 0.70, title = NULL, label = "Neural Network")
     } else if (!is.null(progress_bar) && progress_bar == "txt") {
-        setTxtProgressBar(fs_progress_bar, value = 0.72, title = NULL, label = "Neural Network")
+        setTxtProgressBar(fs_progress_bar, value = 0.70, title = NULL, label = "Neural Network")
     }
     # Neural Network
-    nnet_model_rfe <- automated_embedded_rfe(peaklist = peaklist, features_to_select = features_to_select, selection_method = "nnet", model_tuning = model_tuning, model_tune_grid = list(size = seq(1,5, by = 1), decay = seq(0,2,by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
+    nnet_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "nnet", model_tuning = model_tuning, model_tune_grid = list(size = seq(1,5, by = 1), decay = seq(0,2,by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
     nnet_model <- nnet_model_rfe$feature_selection_model
     nnet_model_features <- nnet_model_rfe$predictors_feature_selection
     nnet_model_class_list <- nnet_model_rfe$class_list
     nnet_model_ID <- "nnet"
     nnet_model_performance <- nnet_model_rfe$fs_model_performance
+    nnet_model_cross_validation_confusion_matrix <- nnet_model_rfe$cross_validation_confusion_matrix
+    nnet_model_cross_validation_confusion_matrix_df <- nnet_model_rfe$cross_validation_confusion_matrix_df
+    nnet_model_cv_performance_parameter_list <- nnet_model_rfe$model_cv_performance_parameter_list
+    nnet_model_external_validation_confusion_matrix <- nnet_model_rfe$external_validation_confusion_matrix
+    nnet_model_external_validation_confusion_matrix_df <- nnet_model_rfe$external_validation_confusion_matrix_df
+    nnet_model_external_performance_parameter_list <- nnet_model_rfe$model_external_performance_parameter_list
     print("Neural Network")
-    print(nnet_model_features)
     print(nnet_model_performance)
+    # Progress bar
+    if (!is.null(progress_bar) && progress_bar == "tcltk") {
+        setTkProgressBar(fs_progress_bar, value = 0.80, title = NULL, label = "Bayesian Generalized Linear Model")
+    } else if (!is.null(progress_bar) && progress_bar == "txt") {
+        setTxtProgressBar(fs_progress_bar, value = 0.80, title = NULL, label = "Bayesian Generalized Linear Model")
+    }
+    # Bayesian Generalized Linear Model
+    BGLM_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "bayesglm", model_tuning = model_tuning, model_tune_grid = list(), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
+    BGLM_model <- BGLM_model_rfe$feature_selection_model
+    BGLM_model_features <- BGLM_model_rfe$predictors_feature_selection
+    BGLM_model_class_list <- BGLM_model_rfe$class_list
+    BGLM_model_ID <- "bayes"
+    BGLM_model_performance <- BGLM_model_rfe$fs_model_performance
+    BGLM_model_cross_validation_confusion_matrix <- BGLM_model_rfe$cross_validation_confusion_matrix
+    BGLM_model_cross_validation_confusion_matrix_df <- BGLM_model_rfe$cross_validation_confusion_matrix_df
+    BGLM_model_cv_performance_parameter_list <- BGLM_model_rfe$model_cv_performance_parameter_list
+    BGLM_model_external_validation_confusion_matrix <- BGLM_model_rfe$external_validation_confusion_matrix
+    BGLM_model_external_validation_confusion_matrix_df <- BGLM_model_rfe$external_validation_confusion_matrix_df
+    BGLM_model_external_performance_parameter_list <- BGLM_model_rfe$model_external_performance_parameter_list
+    print("Bayesian Generalized Linear Model")
+    print(BGLM_model_performance)
     ##### Elements for the RData
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
@@ -4653,19 +4869,23 @@ model_ensemble_embedded_fs <- function(peaklist, features_to_select = 20, common
     }
     ### Each model contains: the model object, the class list, the outcome list, the list of features, the model ID and the model performances
     # Partial Least Squares
-    PLS_model_list <- list(model = pls_model, class_list = pls_model_class_list, outcome_list = outcome_list, features_model = pls_model_features, model_ID = pls_model_ID, model_performance = pls_model_performance)
+    PLS_model_list <- list(model = pls_model, class_list = pls_model_class_list, outcome_list = outcome_list, features_model = pls_model_features, model_ID = pls_model_ID, model_performance = pls_model_performance, cross_validation_confusion_matrix = pls_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = pls_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = pls_model_cv_performance_parameter_list, external_validation_confusion_matrix = pls_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = pls_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = pls_model_external_performance_parameter_list)
     # Support Vector Machine (with Radial Basis Kernel function)
-    RSVM_model_list <- list(model = svmRadial_model, class_list = svmRadial_model_class_list, outcome_list = outcome_list, features_model = svmRadial_model_features, model_ID = svmRadial_model_ID, model_performance = svmRadial_model_performance)
+    RSVM_model_list <- list(model = svmRadial_model, class_list = svmRadial_model_class_list, outcome_list = outcome_list, features_model = svmRadial_model_features, model_ID = svmRadial_model_ID, model_performance = svmRadial_model_performance, cross_validation_confusion_matrix = svmRadial_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = svmRadial_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = svmRadial_model_cv_performance_parameter_list, external_validation_confusion_matrix = svmRadial_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = svmRadial_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = svmRadial_model_external_performance_parameter_list)
     # Support Vector Machine (with Polynomial Kernel function)
-    PSVM_model_list <- list(model = svmPoly_model, class_list = svmPoly_model_class_list, outcome_list = outcome_list, features_model = svmPoly_model_features, model_ID = svmPoly_model_ID, model_performance = svmPoly_model_performance)
+    PSVM_model_list <- list(model = svmPoly_model, class_list = svmPoly_model_class_list, outcome_list = outcome_list, features_model = svmPoly_model_features, model_ID = svmPoly_model_ID, model_performance = svmPoly_model_performance, cross_validation_confusion_matrix = svmPoly_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = svmPoly_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = svmPoly_model_cv_performance_parameter_list, external_validation_confusion_matrix = svmPoly_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = svmPoly_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = svmPoly_model_external_performance_parameter_list)
+    # Support Vector Machine (with Linear Kernel function)
+    LSVM_model_list <- list(model = svmLinear_model, class_list = svmLinear_model_class_list, outcome_list = outcome_list, features_model = svmLinear_model_features, model_ID = svmLinear_model_ID, model_performance = svmLinear_model_performance, cross_validation_confusion_matrix = svmLinear_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = svmLinear_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = svmLinear_model_cv_performance_parameter_list, external_validation_confusion_matrix = svmLinear_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = svmLinear_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = svmLinear_model_external_performance_parameter_list)
     # Random Forest
-    RF_model_list <- list(model = rf_model, class_list = rf_model_class_list, outcome_list = outcome_list, features_model = rf_model_features, model_ID = rf_model_ID, model_performance = rf_model_performance)
+    RF_model_list <- list(model = rf_model, class_list = rf_model_class_list, outcome_list = outcome_list, features_model = rf_model_features, model_ID = rf_model_ID, model_performance = rf_model_performance, cross_validation_confusion_matrix = rf_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = rf_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = rf_model_cv_performance_parameter_list, external_validation_confusion_matrix = rf_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = rf_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = rf_model_external_performance_parameter_list)
     # Naive Bayes Classifier
-    NBC_model_list <- list(model = nbc_model, class_list = nbc_model_class_list, outcome_list = outcome_list, features_model = nbc_model_features, model_ID = nbc_model_ID, model_performance = nbc_model_performance)
+    NBC_model_list <- list(model = nbc_model, class_list = nbc_model_class_list, outcome_list = outcome_list, features_model = nbc_model_features, model_ID = nbc_model_ID, model_performance = nbc_model_performance, cross_validation_confusion_matrix = nbc_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = nbc_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = nbc_model_cv_performance_parameter_list, external_validation_confusion_matrix = nbc_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = nbc_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = nbc_model_external_performance_parameter_list)
     # K-Nearest Neighbor
-    KNN_model_list <- list(model = knn_model, class_list = knn_model_class_list, outcome_list = outcome_list, features_model = knn_model_features, model_ID = knn_model_ID, model_performance = knn_model_performance)
+    KNN_model_list <- list(model = knn_model, class_list = knn_model_class_list, outcome_list = outcome_list, features_model = knn_model_features, model_ID = knn_model_ID, model_performance = knn_model_performance, cross_validation_confusion_matrix = knn_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = knn_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = knn_model_cv_performance_parameter_list, external_validation_confusion_matrix = knn_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = knn_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = knn_model_external_performance_parameter_list)
     # Neural Network
-    NNET_model_list <- list(model = nnet_model, class_list = nnet_model_class_list, outcome_list = outcome_list, features_model = nnet_model_features, model_ID = nnet_model_ID, model_performance = nnet_model_performance)
+    NNET_model_list <- list(model = nnet_model, class_list = nnet_model_class_list, outcome_list = outcome_list, features_model = nnet_model_features, model_ID = nnet_model_ID, model_performance = nnet_model_performance, cross_validation_confusion_matrix = nnet_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = nnet_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = nnet_model_cv_performance_parameter_list, external_validation_confusion_matrix = nnet_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = nnet_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = nnet_model_external_performance_parameter_list)
+    # Bayesian Generalized Linear Model
+    BGLM_model_list <- list(model = BGLM_model, class_list = BGLM_model_class_list, outcome_list = outcome_list, features_model = BGLM_model_features, model_ID = BGLM_model_ID, model_performance = BGLM_model_performance, cross_validation_confusion_matrix = BGLM_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = BGLM_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = BGLM_model_cv_performance_parameter_list, external_validation_confusion_matrix = BGLM_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = BGLM_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = BGLM_model_external_performance_parameter_list)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
         setTkProgressBar(fs_progress_bar, value = 0.95, title = NULL, label = NULL)
@@ -4673,30 +4893,136 @@ model_ensemble_embedded_fs <- function(peaklist, features_to_select = 20, common
         setTxtProgressBar(fs_progress_bar, value = 0.95, title = NULL, label = NULL)
     }
     ### Build the final model list (to be exported) (each element has the proper name of the model)
-    model_list <- list("SVM Radial Basis" = RSVM_model_list, "SVM Polynomial" = PSVM_model_list, "Partial Least Squares" = PLS_model_list, "Random Forest" = RF_model_list, "Naive Bayes Classifier" = NBC_model_list, "k-Nearest Neighbor" = KNN_model_list, "Neural Network" = NNET_model_list)
+    model_list <- list("SVM Radial Basis" = RSVM_model_list, "SVM Polynomial" = PSVM_model_list, "SVM Linear" = LSVM_model_list, "Partial Least Squares" = PLS_model_list, "Random Forest" = RF_model_list, "Naive Bayes Classifier" = NBC_model_list, "k-Nearest Neighbor" = KNN_model_list, "Neural Network" = NNET_model_list, "Bayesian GLM" = BGLM_model_list)
     ### Build the final feature vector
-    feature_list <- extract_feature_list_from_model_list(filepath_R = model_list, model_list_object = "model_list", features_to_return = features_to_select)
-    common_features_list <- extract_common_features_from_model_list(filepath_R = model_list, model_list_object = "model_list", features_to_return = common_features_to_select)
+    feature_list <- extract_feature_list_from_model_list(filepath_R = model_list, features_to_return = features_to_select)
+    common_features_list <- extract_common_features_from_model_list(filepath_R = model_list, features_to_return = common_features_to_select)
     ### Yield the peaklist matrix with only the common features
     if (length(common_features_list) > 0) {
         for (f in 1:length(common_features_list)) {
             common_features_list[f] <- paste0("X", common_features_list[f])
         }
-        peaklist_common_features <- peaklist[, c(common_features_list, non_features)]
+        training_set_common_features <- training_set[, c(common_features_list, non_features)]
     } else {
-        peaklist_common_features <- NULL
+        training_set_common_features <- NULL
     }
     ### Build the matrix with the common features
+    for (cf in 1:length(common_features_list)) {
+        if (startsWith(common_features_list[cf], "X")) {
+            common_features_list[cf] <- as.numeric(unlist(strsplit(common_features_list[cf], "X"))[2])
+        }
+    }
     common_features_matrix <- as.matrix(cbind(common_features_list))
     colnames(common_features_matrix) <- "Common model features"
     ### Build the matrix with the model performances
-    model_performance_matrix <- extract_performance_matrix_from_model_list(filepath_R = model_list, model_list_object = "model_list")
+    model_performance_matrix <- extract_performance_matrix_from_model_list(filepath_R = model_list)
     # Progress bar
     if (!is.null(progress_bar)) {
         close(fs_progress_bar)
     }
     ##### Return
-    return(list(model_list = model_list, feature_list = feature_list, common_features_list = common_features_list, peaklist_common_features = peaklist_common_features, common_features_matrix = common_features_matrix, model_performance_matrix = model_performance_matrix))
+    return(list(model_list = model_list, feature_list = feature_list, common_features_list = common_features_list, training_set_common_features = training_set_common_features, common_features_matrix = common_features_matrix, model_performance_matrix = model_performance_matrix))
+}
+
+
+
+
+
+################################################################################
+
+
+
+
+
+################################################# EXTRACT BAYESIAN PROBABILITIES
+# The functions extracts the bayesian probabilities (prior + likelihood), for each class of a provided training set, by the computation of the confusion matrix (for each class) from the predictions of the provided model onto the training set (cross validation) or onto the test set (external validation).
+# The Bayesian probabilities can be used for weighing the votes for predicted classes in ensemble classifiers.
+extract_bayesian_probabilities <- function(training_set, model_object, discriminant_attribute = "Class", non_features = c("Sample", "Class"), type_of_analysis = "cross validation", test_set = NULL) {
+    ### Load the packages
+    install_and_load_required_packages("caret")
+    ### Determine the classes
+    class_list <- levels(as.factor(training_set[, discriminant_attribute]))
+    ##### CROSS-VALIDATION
+    if (type_of_analysis == "cross validation" || type_of_analysis == "cv" || type_of_analysis == "CV") {
+        ### Initialize the variables
+        cross_validation_confusion_matrix <- NULL
+        cross_validation_confusion_matrix_df <- NULL
+        model_cv_performance_parameter_list <- list()
+        ### Determine the performance parameter values for each class (at each iteration, one class will be considered as the positive class for the confusion matrix)
+        for (cl in 1:length(class_list)) {
+            # One is the positive class
+            positive_class_cv <- class_list[cl]
+            # Confusion matrix (do not overwrite the exsisting one, it is always the same, independently from the positive class chosen)
+            if (is.null(cross_validation_confusion_matrix)) {
+                cross_validation_confusion_matrix <- confusionMatrix(model_object, mode = "everything", dnn = c("Predicted", "Actual"))
+            }
+            # Convert it into a dataframe (rows = Predicted, columns = Actual)
+            if (is.null(cross_validation_confusion_matrix_df)) {
+                cross_validation_confusion_matrix_df <- as.matrix(cbind(cross_validation_confusion_matrix$table[,1], cross_validation_confusion_matrix$table[,2]))
+                colnames(cross_validation_confusion_matrix_df) <- colnames(cross_validation_confusion_matrix$table)
+                rownames(cross_validation_confusion_matrix_df) <- rownames(cross_validation_confusion_matrix$table)
+                cross_validation_confusion_matrix_df <- as.data.frame(cross_validation_confusion_matrix_df)
+            }
+            # Determine the performance parameters (create a vector with all of them, named)
+            model_cv_performance_parameter_vector <- vector()
+            model_cv_performance_parameter_vector[["recall"]] <- recall(cross_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_cv_performance_parameter_vector[["precision"]] <- precision(cross_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_cv_performance_parameter_vector[["sensitivity"]] <- sensitivity(cross_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_cv_performance_parameter_vector[["specificity"]] <- specificity(cross_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_cv_performance_parameter_vector[["PPV"]] <- posPredValue(cross_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_cv_performance_parameter_vector[["NPV"]] <- negPredValue(cross_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_cv_performance_parameter_vector[["balanced accuracy"]] <- (model_cv_performance_parameter_vector[["sensitivity"]] + model_cv_performance_parameter_vector[["specificity"]]) / 2
+            # Store the vector in the list, named according to the positive class of the CV
+            model_cv_performance_parameter_list[[positive_class_cv]][["parameters"]] <- model_cv_performance_parameter_vector
+            # Store the vector in the list, named according to the positive class of the CV (likelihood)
+            model_cv_performance_parameter_list[[positive_class_cv]][["likelihood"]] <- model_cv_performance_parameter_vector[["PPV"]]
+            # Store the prior probability in the list, named according to the positive class of the CV (prior)
+            model_cv_performance_parameter_list[[positive_class_cv]][["prior"]] <- nrow(training_set[training_set[, discriminant_attribute] == positive_class_cv, ]) / nrow(training_set)
+        }
+        ### Return
+        return(list(model_cv_performance_parameter_list = model_cv_performance_parameter_list, cross_validation_confusion_matrix = cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = cross_validation_confusion_matrix_df))
+    } else if ((type_of_analysis == "external validation" || type_of_analysis == "ev" || type_of_analysis == "EV") && (!is.null(test_set) && (is.matrix(test_set) || is.data.frame(test_set)))) {
+        ### Initialize the variables
+        external_validation_confusion_matrix <- NULL
+        external_validation_confusion_matrix_df <- NULL
+        model_external_performance_parameter_list <- list()
+        ### The training and the test sets must have the same exact features
+        test_set <- test_set[, names(training_set)]
+        predicted_classes_model <- as.character(predict(model_object, newdata = test_set[,!(names(test_set) %in% non_features)]))
+        ### Determine the performance parameter values for each class (at each iteration, one class will be considered as the positive class for the confusion matrix)
+        for (cl in 1:length(class_list)) {
+            # One is the positive class
+            positive_class_cv <- class_list[cl]
+            # Confusion matrix (do not overwrite the exsisting one, it is always the same, independently from the positive class chosen)
+            if (is.null(external_validation_confusion_matrix)) {
+                external_validation_confusion_matrix <- confusionMatrix(data = predicted_classes_model, reference = test_set[, discriminant_attribute], positive = positive_class_cv, dnn = c("Predicted", "Actual"), mode = "everything")
+            }
+            # Convert it into a dataframe (rows = Predicted, columns = Actual)
+            if (is.null(external_validation_confusion_matrix_df)) {
+                external_validation_confusion_matrix_df <- as.matrix(cbind(external_validation_confusion_matrix$table[,1], external_validation_confusion_matrix$table[,2]))
+                colnames(external_validation_confusion_matrix_df) <- colnames(external_validation_confusion_matrix$table)
+                rownames(external_validation_confusion_matrix_df) <- rownames(external_validation_confusion_matrix$table)
+                external_validation_confusion_matrix_df <- as.data.frame(external_validation_confusion_matrix_df)
+            }
+            # Determine the performance parameters (create a vector with all of them, named)
+            model_external_performance_parameter_vector <- vector()
+            model_external_performance_parameter_vector[["recall"]] <- recall(external_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_external_performance_parameter_vector[["precision"]] <- precision(external_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_external_performance_parameter_vector[["sensitivity"]] <- sensitivity(external_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_external_performance_parameter_vector[["specificity"]] <- specificity(external_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_external_performance_parameter_vector[["PPV"]] <- posPredValue(external_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_external_performance_parameter_vector[["NPV"]] <- negPredValue(external_validation_confusion_matrix$table, positive = positive_class_cv)
+            model_external_performance_parameter_vector[["balanced accuracy"]] <- (model_external_performance_parameter_vector[["sensitivity"]] + model_external_performance_parameter_vector[["specificity"]]) / 2
+            # Store the vector in the list, named according to the positive class of the CV
+            model_external_performance_parameter_list[[positive_class_cv]][["parameters"]] <- model_external_performance_parameter_vector
+            # Store the vector in the list, named according to the positive class of the CV (likelihood)
+            model_external_performance_parameter_list[[positive_class_cv]][["likelihood"]] <- model_external_performance_parameter_vector[["PPV"]]
+            # Store the prior probability in the list, named according to the positive class of the CV (prior)
+            model_cv_performance_parameter_list[[positive_class_cv]][["prior"]] <- nrow(training_set[training_set[, discriminant_attribute] == positive_class_cv, ]) / nrow(training_set)
+        }
+        ### Return
+        return(list(model_external_performance_parameter_list = model_external_performance_parameter_list, external_validation_confusion_matrix = external_validation_confusion_matrix, external_validation_confusion_matrix_df = external_validation_confusion_matrix_df))
+    }
 }
 
 
@@ -4711,7 +5037,7 @@ model_ensemble_embedded_fs <- function(peaklist, features_to_select = 20, common
 
 ################################################### SINGLE MODEL TRAINING/TUNING
 # The function takes the peaklist matrix with only the features yielded from the feature selection process and trains and tunes a single model with those features.
-single_model_training_and_tuning <- function(peaklist_feature_selection, non_features = c("Sample", "Class"), discriminant_attribute = "Class", preprocessing = c("center", "scale"), selection_method = "pls", model_tune_grid = list(), selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, seed = NULL, generate_plots = TRUE, external_peaklist = NULL, positive_class_cv = "HP", allow_parallelization = TRUE) {
+single_model_training_and_tuning <- function(training_set_feature_selection, non_features = c("Sample", "Class"), discriminant_attribute = "Class", preprocessing = c("center", "scale"), selection_method = "pls", model_tune_grid = list(), selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, seed = NULL, generate_plots = TRUE, test_set = NULL, positive_class_cv = "HP", allow_parallelization = TRUE) {
     # Load the required libraries
     install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi"))
     ### Parallelization
@@ -4742,9 +5068,9 @@ single_model_training_and_tuning <- function(peaklist_feature_selection, non_fea
     train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL)
     ### Define the model tuned
     if (!is.null(model_tune_grid) || (is.list(model_tune_grid) && length(model_tune_grid) > 0)) {
-        fs_model <- train(x = peaklist_feature_selection[, !(names(peaklist_feature_selection) %in% non_features)], y = peaklist_feature_selection[, discriminant_attribute], method = selection_method, preProcess = preprocessing, tuneGrid = expand.grid(model_tune_grid), trControl = train_ctrl, metric = selection_metric)
+        fs_model <- train(x = training_set_feature_selection[, !(names(training_set_feature_selection) %in% non_features)], y = training_set_feature_selection[, discriminant_attribute], method = selection_method, preProcess = preprocessing, tuneGrid = expand.grid(model_tune_grid), trControl = train_ctrl, metric = selection_metric)
     } else {
-        fs_model <- train(x = peaklist_feature_selection[, !(names(peaklist_feature_selection) %in% non_features)], y = peaklist_feature_selection[, discriminant_attribute], method = selection_method, preProcess = preprocessing, trControl = train_ctrl, metric = selection_metric)
+        fs_model <- train(x = training_set_feature_selection[, !(names(training_set_feature_selection) %in% non_features)], y = training_set_feature_selection[, discriminant_attribute], method = selection_method, preProcess = preprocessing, trControl = train_ctrl, metric = selection_metric)
     }
     ### Model performances
     if (selection_metric == "kappa" || selection_metric == "Kappa") {
@@ -4768,7 +5094,7 @@ single_model_training_and_tuning <- function(peaklist_feature_selection, non_fea
         }
     }
     ### External validation
-    if (!is.null(external_peaklist) && (is.matrix(external_peaklist) || is.data.frame(external_peaklist))) {
+    if (!is.null(test_set) && (is.matrix(test_set) || is.data.frame(test_set))) {
         ## Use the model to predict the outcome of the testing set (the new data must have only the predictors)
         # Plant the seed only if a specified value is entered
         if (!is.null(seed)) {
@@ -4776,15 +5102,15 @@ single_model_training_and_tuning <- function(peaklist_feature_selection, non_fea
             set.seed(seed)
         }
         # Class prediction (with the same features!)
-        external_peaklist <- external_peaklist[, names(peaklist_feature_selection)]
-        predicted_classes_model <- predict(fs_model, newdata = external_peaklist[,!(names(external_peaklist) %in% non_features)])
+        test_set <- test_set[, names(training_set_feature_selection)]
+        predicted_classes_model <- predict(fs_model, newdata = test_set[,!(names(test_set) %in% non_features)])
         # Create the outcomes dataframe
-        classification_results_model <- data.frame(Sample = external_peaklist$Sample, Predicted = predicted_classes_model, True = external_peaklist$Class)
+        classification_results_model <- data.frame(Sample = test_set$Sample, Predicted = predicted_classes_model, True = test_set$Class)
         # Generate the confusion matrix to evaluate the performances (take the first class as positive if not specified)
-        if (is.null(positive_class_cv) || !(positive_class_cv %in% levels(as.factor(peaklist_feature_selection[, discriminant_attribute])))) {
-            positive_class_cv <- levels(as.factor(peaklist_feature_selection[, discriminant_attribute]))[1]
+        if (is.null(positive_class_cv) || !(positive_class_cv %in% levels(as.factor(training_set_feature_selection[, discriminant_attribute])))) {
+            positive_class_cv <- levels(as.factor(training_set_feature_selection[, discriminant_attribute]))[1]
         }
-        model_performance_confusion_matrix <- confusionMatrix(data = predicted_classes_model, reference = external_peaklist$Class, positive = positive_class_cv)
+        model_performance_confusion_matrix <- confusionMatrix(data = predicted_classes_model, reference = test_set$Class, positive = positive_class_cv, , dnn = c("Predicted", "Actual"), mode = "everything")
         ## ROC analysis
         model_roc <- list()
         roc_curve <- roc(response = as.numeric(classification_results_model$True), predictor = as.numeric(classification_results_model$Predicted))
@@ -4820,7 +5146,7 @@ single_model_training_and_tuning <- function(peaklist_feature_selection, non_fea
         model_roc <- NULL
     }
     ### Return
-    return(list(fs_model = fs_model, fs_model_performance = fs_model_performance, class_list = levels(as.factor(peaklist_feature_selection[, discriminant_attribute])), feature_list = colnames(peaklist_feature_selection[, !(names(peaklist_feature_selection) %in% non_features)]), model_performance_confusion_matrix = model_performance_confusion_matrix, pie_chart_classification = pie_chart_classification, model_roc = model_roc))
+    return(list(fs_model = fs_model, fs_model_performance = fs_model_performance, class_list = levels(as.factor(training_set_feature_selection[, discriminant_attribute])), feature_list = colnames(training_set_feature_selection[, !(names(training_set_feature_selection) %in% non_features)]), model_performance_confusion_matrix = model_performance_confusion_matrix, pie_chart_classification = pie_chart_classification, model_roc = model_roc))
 }
 
 
@@ -4836,7 +5162,7 @@ single_model_training_and_tuning <- function(peaklist_feature_selection, non_fea
 ##################################### AUTOMATED SINGLE MODEL TRAINING AND TUNING
 # This function iteratively runs the single-model train/tune function onto the same input objects as that function, in order to find the best combination of parameters (preprocessing) for the training/tuning. It returns the same elements of the single_model_training_and_tuning function, but the best chosen after trying all of the parameter combinations.
 # The function allows for the use of several feature selection algorithms.
-automated_single_model_training_and_tuning <- function(peaklist_feature_selection, non_features = c("Sample", "Class"), discriminant_attribute = "Class", preprocessing = c("center", "scale"), selection_method = "pls", model_tune_grid = list(), selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, seed = NULL, generate_plots = TRUE, external_peaklist = NULL, positive_class_cv = "HP", allow_parallelization = TRUE, try_combination_of_parameters = TRUE) {
+automated_single_model_training_and_tuning <- function(training_set_feature_selection, non_features = c("Sample", "Class"), discriminant_attribute = "Class", preprocessing = c("center", "scale"), selection_method = "pls", model_tune_grid = list(), selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, seed = NULL, generate_plots = TRUE, test_set = NULL, positive_class_cv = "HP", allow_parallelization = TRUE, try_combination_of_parameters = TRUE) {
     # Load the required libraries
     install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi"))
     if (try_combination_of_parameters == TRUE) {
@@ -4855,7 +5181,7 @@ automated_single_model_training_and_tuning <- function(peaklist_feature_selectio
         best_fs_model <- NULL
         # Run every combination, storing the result if good
         for (comb in 1:length(parameter_combination)) {
-            single_model <- single_model_training_and_tuning(peaklist_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = parameter_combination[[comb]]$preprocessing, selection_method = selection_method, model_tune_grid = model_tune_grid, selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, external_peaklist = external_peaklist, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization)
+            single_model <- single_model_training_and_tuning(training_set_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = parameter_combination[[comb]]$preprocessing, selection_method = selection_method, model_tune_grid = model_tune_grid, selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, test_set = test_set, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization)
             ### Check (and store) the performance values and the model
             if (is.null(best_model_performance) || single_model$fs_model_performance > best_model_performance) {
                 best_model_performance <- single_model$fs_model_performance
@@ -4864,7 +5190,7 @@ automated_single_model_training_and_tuning <- function(peaklist_feature_selectio
         }
     } else {
         ### NO combinations, run the single function...
-        best_fs_model <- single_model_training_and_tuning(peaklist_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = selection_method, model_tune_grid = model_tune_grid, selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, external_peaklist = external_peaklist, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization)
+        best_fs_model <- single_model_training_and_tuning(training_set_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = selection_method, model_tune_grid = model_tune_grid, selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, test_set = test_set, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization)
     }
     ### Return the values
     return(best_fs_model)
@@ -4883,7 +5209,7 @@ automated_single_model_training_and_tuning <- function(peaklist_feature_selectio
 ############### MODEL ENSEMBLE TRAINING/TUNING (WITH EMBEDDED FEATURE SELECTION)
 # Several models undergo training/tuning with the features selected after the feature selection phase.
 # The function returns a list of models (with the model object, the model ID, the performances, the outcome list, the class list and the features), a matrix listing the cross-validation performances for each model and the feature list (common and for each model).
-model_ensemble_training_and_tuning <- function(peaklist_feature_selection, non_features = c("Sample", "Class"), discriminant_attribute = "Class", preprocessing = c("center", "scale"), selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, seed = NULL, generate_plots = TRUE, external_peaklist = NULL, positive_class_cv = "HP", allow_parallelization = TRUE, try_combination_of_parameters = TRUE, outcome_list = c("benign", "malignant"), progress_bar = NULL) {
+model_ensemble_training_and_tuning <- function(training_set_feature_selection, non_features = c("Sample", "Class"), discriminant_attribute = "Class", preprocessing = c("center", "scale"), selection_metric = "Accuracy", cv_repeats_control = 5, k_fold_cv_control = 10, seed = NULL, generate_plots = TRUE, test_set = NULL, positive_class_cv = "HP", allow_parallelization = TRUE, try_combination_of_parameters = TRUE, outcome_list = c("benign", "malignant"), progress_bar = NULL) {
     # Progress bar (from 0 to 90 % is the feature selection and model tuning, the last 10% is the generation of the model list for the RData file: round the percentage values manually!)
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
         install_and_load_required_packages("tcltk")
@@ -4899,7 +5225,7 @@ model_ensemble_training_and_tuning <- function(peaklist_feature_selection, non_f
         setTxtProgressBar(fs_progress_bar, value = 0, title = NULL, label = "Partial Least Squares")
     }
     # Partial Least Squares
-    pls_model_training_and_tuning <- automated_single_model_training_and_tuning(peaklist_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "pls", model_tune_grid = data.frame(ncomp = 1:5), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, external_peaklist = external_peaklist, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
+    pls_model_training_and_tuning <- automated_single_model_training_and_tuning(training_set_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "pls", model_tune_grid = list(ncomp = 1:5), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, test_set = test_set, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
     pls_model <- pls_model_training_and_tuning$fs_model
     pls_model_features <- pls_model_training_and_tuning$feature_list
     pls_model_class_list <- pls_model_training_and_tuning$class_list
@@ -4915,7 +5241,7 @@ model_ensemble_training_and_tuning <- function(peaklist_feature_selection, non_f
         setTxtProgressBar(fs_progress_bar, value = 0.12, title = NULL, label = "RBF Support Vector Machines")
     }
     # Support Vector Machines (with Radial Basis Kernel function)
-    svmRadial_model_training_and_tuning <- automated_single_model_training_and_tuning(peaklist_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "svmRadial", model_tune_grid = list(sigma = 10^(-5:5), C = 10^(-5:5)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, external_peaklist = external_peaklist, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
+    svmRadial_model_training_and_tuning <- automated_single_model_training_and_tuning(training_set_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "svmRadial", model_tune_grid = list(sigma = 10^(-5:5), C = 10^(-5:5)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, test_set = test_set, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
     svmRadial_model <- svmRadial_model_training_and_tuning$fs_model
     svmRadial_model_features <- svmRadial_model_training_and_tuning$feature_list
     svmRadial_model_class_list <- svmRadial_model_training_and_tuning$class_list
@@ -4931,7 +5257,7 @@ model_ensemble_training_and_tuning <- function(peaklist_feature_selection, non_f
         setTxtProgressBar(fs_progress_bar, value = 0.24, title = NULL, label = "Polynomial Support Vector Machines")
     }
     # Support Vector Machine (with Polynomial Kernel function)
-    svmPoly_model_training_and_tuning <- automated_single_model_training_and_tuning(peaklist_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "svmPoly", model_tune_grid = list(C = 10^(-5:5), degree = 1:5, scale = 1), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, external_peaklist = external_peaklist, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
+    svmPoly_model_training_and_tuning <- automated_single_model_training_and_tuning(training_set_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "svmPoly", model_tune_grid = list(C = 10^(-5:5), degree = 1:5, scale = 1), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, test_set = test_set, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
     svmPoly_model <- svmPoly_model_training_and_tuning$fs_model
     svmPoly_model_features <- svmPoly_model_training_and_tuning$feature_list
     svmPoly_model_class_list <- svmPoly_model_training_and_tuning$class_list
@@ -4947,7 +5273,7 @@ model_ensemble_training_and_tuning <- function(peaklist_feature_selection, non_f
         setTxtProgressBar(fs_progress_bar, value = 0.36, title = NULL, label = "Random Forest")
     }
     # Random Forest
-    rf_model_training_and_tuning <- automated_single_model_training_and_tuning(peaklist_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "rf", model_tune_grid = list(mtry = seq(1,5, by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, external_peaklist = external_peaklist, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
+    rf_model_training_and_tuning <- automated_single_model_training_and_tuning(training_set_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "rf", model_tune_grid = list(mtry = seq(1,5, by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, test_set = test_set, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
     rf_model <- rf_model_training_and_tuning$fs_model
     rf_model_features <- rf_model_training_and_tuning$feature_list
     rf_model_class_list <- rf_model_training_and_tuning$class_list
@@ -4963,7 +5289,7 @@ model_ensemble_training_and_tuning <- function(peaklist_feature_selection, non_f
         setTxtProgressBar(fs_progress_bar, value = 0.48, title = NULL, label = "Naive Bayes Classifier")
     }
     # Naive Bayes Classifier
-    nbc_model_training_and_tuning <- automated_single_model_training_and_tuning(peaklist_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "nb", model_tune_grid = data.frame(fL = seq(0, 1, by = 0.2), usekernel = c(TRUE, FALSE), adjust = c(TRUE, FALSE)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, external_peaklist = external_peaklist, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
+    nbc_model_training_and_tuning <- automated_single_model_training_and_tuning(training_set_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "nb", model_tune_grid = list(fL = seq(0, 1, by = 0.2), usekernel = c(TRUE, FALSE), adjust = c(TRUE, FALSE)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, test_set = test_set, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
     nbc_model <- nbc_model_training_and_tuning$fs_model
     nbc_model_features <- nbc_model_training_and_tuning$feature_list
     nbc_model_class_list <- nbc_model_training_and_tuning$class_list
@@ -4979,7 +5305,7 @@ model_ensemble_training_and_tuning <- function(peaklist_feature_selection, non_f
         setTxtProgressBar(fs_progress_bar, value = 0.60, title = NULL, label = "k-Nearest Neighbor")
     }
     # K-Nearest Neighbor
-    knn_model_training_and_tuning <- automated_single_model_training_and_tuning(peaklist_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "knn", model_tune_grid = list(k = seq(1,15, by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, external_peaklist = external_peaklist, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
+    knn_model_training_and_tuning <- automated_single_model_training_and_tuning(training_set_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "knn", model_tune_grid = list(k = seq(1,15, by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, test_set = test_set, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
     knn_model <- knn_model_training_and_tuning$fs_model
     knn_model_features <- knn_model_training_and_tuning$feature_list
     knn_model_class_list <- knn_model_training_and_tuning$class_list
@@ -4995,7 +5321,7 @@ model_ensemble_training_and_tuning <- function(peaklist_feature_selection, non_f
         setTxtProgressBar(fs_progress_bar, value = 0.72, title = NULL, label = "Neural Network")
     }
     # Neural Network
-    nnet_model_training_and_tuning <- automated_single_model_training_and_tuning(peaklist_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "nnet", model_tune_grid = list(size = seq(1,5, by = 1), decay = seq(0,2,by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, external_peaklist = external_peaklist, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
+    nnet_model_training_and_tuning <- automated_single_model_training_and_tuning(training_set_feature_selection, non_features = non_features, discriminant_attribute = discriminant_attribute, preprocessing = preprocessing, selection_method = "nnet", model_tune_grid = list(size = seq(1,5, by = 1), decay = seq(0,2,by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, seed = seed, generate_plots = generate_plots, test_set = test_set, positive_class_cv = positive_class_cv, allow_parallelization = allow_parallelization, try_combination_of_parameters = try_combination_of_parameters)
     nnet_model <- nnet_model_training_and_tuning$fs_model
     nnet_model_features <- nnet_model_training_and_tuning$feature_list
     nnet_model_class_list <- nnet_model_training_and_tuning$class_list
@@ -5035,9 +5361,9 @@ model_ensemble_training_and_tuning <- function(peaklist_feature_selection, non_f
     ### Build the final model list (to be exported) (each element has the proper name of the model)
     model_list <- list("SVM Radial Basis" = RSVM_model_list, "SVM Polynomial" = PSVM_model_list, "Partial Least Squares" = PLS_model_list, "Random Forest" = RF_model_list, "Naive Bayes Classifier" = NBC_model_list, "k-Nearest Neighbor" = KNN_model_list, "Neural Network" = NNET_model_list)
     ### Build the final feature vector
-    feature_list <- extract_feature_list_from_model_list(filepath_R = model_list, model_list_object = "model_list", features_to_return = 0)
+    feature_list <- extract_feature_list_from_model_list(filepath_R = model_list, features_to_return = 0)
     ### Build the matrix with the model performances
-    model_performance_matrix <- extract_performance_matrix_from_model_list(filepath_R = model_list, model_list_object = "model_list")
+    model_performance_matrix <- extract_performance_matrix_from_model_list(filepath_R = model_list)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
         setTkProgressBar(fs_progress_bar, value = 1, title = NULL, label = NULL)
@@ -5155,7 +5481,7 @@ spectral_typer_score_hierarchical_distance <- function(spectra_database, spectra
             distance_matrix <- distance_matrix * 10
             # The classification is made by comparing the single sample spectrum with the spectrum of the database class (the distance is displayed in the distance matrix): the closer the better
             # Scroll the rows, assign the class based upon the distance, create the output matrix for results (create a function to apply to each matrix row)
-            scoring_function <- function (x) {
+            scoring_function <- function(x) {
                 if (x < 1) {
                     x <- paste0("YES\n(", round(as.numeric(x),3), ")")
                 } else if (x >= 1 && x < 1.2) {
@@ -5210,7 +5536,18 @@ spectral_typer_score_hierarchical_distance <- function(spectra_database, spectra
 # The function calculates the score for the Spectral Typer program, by comparing the test peaklist with the database peaklist, in terms of peak matching and intensity symmetry via the correlation matrix.
 # Each sample gets compared with each entry in the database, separately.
 # Parallel implemented.
-spectral_typer_score_correlation_matrix <- function(spectra_database, spectra_test, peaks_database, peaks_test, filepath_database, filepath_test, class_list_library = NULL, peaks_filtering_percentage_threshold = 5, low_intensity_percentage_threshold = 0, low_intensity_threshold_method = "element-wise", tof_mode = "linear", correlation_method = "spearman", intensity_correction_coefficient = 1, spectra_format = "brukerflex", spectra_path_output = TRUE, score_only = FALSE, allow_parallelization = FALSE) {
+spectral_typer_score_correlation_matrix <- function(spectra_database, spectra_test, peaks_database, peaks_test, filepath_database, filepath_test, class_list_library = NULL, peaks_filtering_percentage_threshold = 5, low_intensity_percentage_threshold = 0, low_intensity_threshold_method = "element-wise", tof_mode = "linear", correlation_method = "spearman", intensity_correction_coefficient = 1, spectra_format = "brukerflex", spectra_path_output = TRUE, score_only = FALSE, allow_parallelization = FALSE, score_threshold_values = c(1.7, 2)) {
+    ### Fix the score intensity threshold values
+    if (!is.numeric(score_threshold_values) || (is.numeric(score_threshold_values) && length(score_threshold_values) != 2)) {
+        score_threshold_values <- c(1.7, 2)
+    } else if (is.numeric(score_threshold_values) && length(score_threshold_values) == 2) {
+        if (score_threshold_values[1] < 0) {
+            score_threshold_values[1] <- 0
+        }
+        if (score_threshold_values[2] > 3) {
+            score_threshold_values[2] <- 3
+        }
+    }
     install_and_load_required_packages(c("MALDIquant", "XML", "corrplot", "weights", "stats", "parallel"))
     # Rename the trim function
     trim_spectra <- get(x = "trim", pos = "package:MALDIquant")
@@ -5519,13 +5856,11 @@ spectral_typer_score_correlation_matrix <- function(spectra_database, spectra_te
     if (score_only == TRUE) {
         for (r in 1:number_of_samples) {
             for (w in 1:database_size) {
-                if (score[r,w]>=2) {
+                if (score[r,w] >= score_threshold_values[2]) {
                     output[r,w] <- paste("YES","(", round(score[r,w], digits = 3), ")")
-                }
-                if (score[r,w]<1.5) {
+                } else if (score[r,w] < score_threshold_values[1]) {
                     output[r,w] <- paste("NO", "(", round(score[r,w], digits = 3), ")")
-                }
-                if (score[r,w]>=1.5 && score[r,w]<2) {
+                } else if (score[r,w] >= score_threshold_values[1] && score[r,w] < score_threshold_values[2]) {
                     output[r,w] <- paste("NI","(", round(score[r,w], digits = 3), ")")
                 }
             }
@@ -5533,13 +5868,11 @@ spectral_typer_score_correlation_matrix <- function(spectra_database, spectra_te
     } else {
         for (r in 1:number_of_samples) {
             for (w in 1:database_size) {
-                if (score[r,w] >= 2) {
+                if (score[r,w] >= score_threshold_values[2]) {
                     output[r,w] <- paste("YES","(Score:", round(score[r,w], digits = 3), "), ","(F:", matching_signals_matrix_all[r,w], "/", output_list[[r]]$number_of_signals_samples, " = ", round(fit_matrix_all[r,w], digits = 3), ",", "RF:", matching_signals_matrix_all[r,w], "/", number_of_signals_database_matrix_all[r,w], " = ", round(retrofit_matrix_all[r,w], digits = 3), ",", "Corr:", round(intensity_correlation_matrix_all[r,w], digits = 3), ",", "p:", pvalue_matrix_all[r,w], "sl:", slope_matrix_all[r,w], ",", "ns:", matching_signals_matrix_all[r,w], ")")
-                }
-                if (score[r,w] < 1.5) {
+                } else if (score[r,w] < score_threshold_values[1]) {
                     output[r,w] <- paste("NO","(Score:", round(score[r,w], digits = 3), "), ","(F:", matching_signals_matrix_all[r,w], "/", output_list[[r]]$number_of_signals_samples, " = ", round(fit_matrix_all[r,w], digits = 3), ",", "RF:", matching_signals_matrix_all[r,w], "/", number_of_signals_database_matrix_all[r,w], " = ", round(retrofit_matrix_all[r,w], digits = 3), ",", "Corr:", round(intensity_correlation_matrix_all[r,w], digits = 3), ",", "p:", pvalue_matrix_all[r,w], "sl:", slope_matrix_all[r,w], ",", "ns:", matching_signals_matrix_all[r,w], ")")
-                }
-                if (score[r,w] >= 1.5 && score[r,w] < 2) {
+                } else if (score[r,w] >= score_threshold_values[1] && score[r,w] < score_threshold_values[2]) {
                     output[r,w] <- paste("NI","(Score:", round(score[r,w], digits = 3), "), ","(F:", matching_signals_matrix_all[r,w], "/", output_list[[r]]$number_of_signals_samples, " = ", round(fit_matrix_all[r,w], digits = 3), ",", "RF:", matching_signals_matrix_all[r,w], "/", number_of_signals_database_matrix_all[r,w], " = ", round(retrofit_matrix_all[r,w], digits = 3), ",", "Corr:", round(intensity_correlation_matrix_all[r,w], digits = 3), ",", "p:", pvalue_matrix_all[r,w], "sl:", slope_matrix_all[r,w], ",", "ns:", matching_signals_matrix_all[r,w], ")")
                 }
             }
@@ -5562,7 +5895,18 @@ spectral_typer_score_correlation_matrix <- function(spectra_database, spectra_te
 # The function calculates the score for the Spectral Typer program, by comparing the test peaklist with the database peaklist, in terms of peak matching and intensity comparison. The similarity comparison can be weighed accounting for the variability (coefficient of variation) for each database entry and sample, provided by two lists (one for the database and one for the samples) returned from the spectral_variability_estimation function (each element of the list should be named with the same name as the relative entry, otherwise the order is taken for matching); if there are NA values, the adjustment valu is taken from the average CV, and finally (if it is still NA), from the fixed provided value.
 # Each sample gets compared with each entry in the database, separately.
 # Parallel implemented.
-spectral_typer_score_signal_intensity <- function(spectra_database, spectra_test, peaks_database, peaks_test, class_list_library = NULL, database_spectral_variability_list = list(), test_spectral_variability_list = list(), signal_intensity_evaluation = c("fixed percentage", "peak-wise adjusted percentage", "average coefficient of variation"), peaks_filtering_percentage_threshold = 5, low_intensity_percentage_threshold = 0, low_intensity_threshold_method = "element-wise", tof_mode = "linear", intensity_tolerance_percent_threshold = 50, spectra_format = "brukerflex", spectra_path_output = TRUE, score_only = TRUE, allow_parallelization = FALSE) {
+spectral_typer_score_signal_intensity <- function(spectra_database, spectra_test, peaks_database, peaks_test, class_list_library = NULL, database_spectral_variability_list = list(), test_spectral_variability_list = list(), signal_intensity_evaluation = c("fixed percentage", "peak-wise adjusted percentage", "average coefficient of variation"), peaks_filtering_percentage_threshold = 5, low_intensity_percentage_threshold = 0, low_intensity_threshold_method = "element-wise", tof_mode = "linear", intensity_tolerance_percent_threshold = 50, spectra_format = "brukerflex", spectra_path_output = TRUE, score_only = TRUE, allow_parallelization = FALSE, score_threshold_values = c(1.7, 2)) {
+    ### Fix the score intensity threshold values
+    if (!is.numeric(score_threshold_values) || (is.numeric(score_threshold_values) && length(score_threshold_values) != 2)) {
+        score_threshold_values <- c(1.7, 2)
+    } else if (is.numeric(score_threshold_values) && length(score_threshold_values) == 2) {
+        if (score_threshold_values[1] < 0) {
+            score_threshold_values[1] <- 0
+        }
+        if (score_threshold_values[2] > 3) {
+            score_threshold_values[2] <- 3
+        }
+    }
     ### Fix the evaluation method (if the variability lists are absent)
     if (is.null(database_spectral_variability_list) || length(database_spectral_variability_list) == 0 || is.null(test_spectral_variability_list) || length(test_spectral_variability_list) == 0) {
         signal_intensity_evaluation <- "fixed percentage"
@@ -5940,13 +6284,11 @@ spectral_typer_score_signal_intensity <- function(spectra_database, spectra_test
     if (score_only == TRUE) {
         for (r in 1:number_of_samples) {
             for (w in 1:database_size) {
-                if (score[r,w]>=2) {
+                if (score[r,w] >= score_threshold_values[2]) {
                     output[r,w] <- paste("YES","(", round(score[r,w], digits = 3), ")")
-                }
-                if (score[r,w]<1.5) {
+                } else if (score[r,w] < score_threshold_values[1]) {
                     output[r,w] <- paste("NO", "(", round(score[r,w], digits = 3), ")")
-                }
-                if (score[r,w]>=1.5 && score[r,w]<2) {
+                } else if (score[r,w] >= score_threshold_values[1] && score[r,w] < score_threshold_values[2]) {
                     output[r,w] <- paste("NI","(", round(score[r,w], digits = 3), ")")
                 }
             }
@@ -5954,13 +6296,11 @@ spectral_typer_score_signal_intensity <- function(spectra_database, spectra_test
     } else {
         for (r in 1:number_of_samples) {
             for (w in 1:database_size) {
-                if (score[r,w]>=2) {
+                if (score[r,w] >= score_threshold_values[2]) {
                     output[r,w] <- paste("YES","(Score:", round(score[r,w], digits = 3), "), ", "(F:", matching_signals_matrix_all[r,w], "/", output_list[[r]]$number_of_signals_samples, " = ", round(fit_matrix_all[r,w], digits = 3), ",", "RF:", matching_signals_matrix_all[r,w], "/", number_of_signals_database_matrix_all[r,w], " = ", round(retrofit_matrix_all[r,w], digits = 3), ",", "IntMtch:", round(intensity_matching_matrix_all[r,w], digits = 3), ",", "ns:", matching_signals_matrix_all[r,w], ")")
-                }
-                if (score[r,w]<1.5) {
+                } else if (score[r,w] < score_threshold_values[1]) {
                     output[r,w] <- paste("NO","(Score:", round(score[r,w], digits = 3), "), ", "(F:", matching_signals_matrix_all[r,w], "/", output_list[[r]]$number_of_signals_samples, " = ", round(fit_matrix_all[r,w], digits = 3), ",", "RF:", matching_signals_matrix_all[r,w], "/", number_of_signals_database_matrix_all[r,w], " = ", round(retrofit_matrix_all[r,w], digits = 3), ",", "IntMtch:", round(intensity_matching_matrix_all[r,w], digits = 3), ",", "ns:", matching_signals_matrix_all[r,w], ")")
-                }
-                if (score[r,w]>=1.5 && score[r,w]<2) {
+                } else if (score[r,w] >= score_threshold_values[1] && score[r,w] < score_threshold_values[2]) {
                     output[r,w] <- paste("NI","(Score:", round(score[r,w], digits = 3), "), ", "(F:", matching_signals_matrix_all[r,w], "/", output_list[[r]]$number_of_signals_samples, " = ", round(fit_matrix_all[r,w], digits = 3), ",", "RF:", matching_signals_matrix_all[r,w], "/", number_of_signals_database_matrix_all[r,w], " = ", round(retrofit_matrix_all[r,w], digits = 3), ",", "IntMtch:", round(intensity_matching_matrix_all[r,w], digits = 3), ",", "ns:", matching_signals_matrix_all[r,w], ")")
                 }
             }
@@ -5977,7 +6317,18 @@ spectral_typer_score_signal_intensity <- function(spectra_database, spectra_test
 # The function calculates the score for the Spectral Typer program, by comparing the test peaklist with the database peaklist, in terms of peak matching and intensity symmetry via the similarity index computation.
 # Each sample gets compared with each entry in the database, separately.
 # Parallel implemented.
-spectral_typer_score_similarity_index <- function(spectra_database, spectra_test, peaks_database, peaks_test, filepath_database, filepath_test, class_list_library = NULL, peaks_filtering_percentage_threshold = 5, low_intensity_percentage_threshold = 0.1, low_intensity_threshold_method = "element-wise", tof_mode = "linear", spectra_format = "brukerflex", spectra_path_output = TRUE, score_only = FALSE, allow_parallelization = FALSE) {
+spectral_typer_score_similarity_index <- function(spectra_database, spectra_test, peaks_database, peaks_test, filepath_database, filepath_test, class_list_library = NULL, peaks_filtering_percentage_threshold = 5, low_intensity_percentage_threshold = 0.1, low_intensity_threshold_method = "element-wise", tof_mode = "linear", spectra_format = "brukerflex", spectra_path_output = TRUE, score_only = FALSE, allow_parallelization = FALSE, score_threshold_values = c(1.7, 2)) {
+    ### Fix the score intensity threshold values
+    if (!is.numeric(score_threshold_values) || (is.numeric(score_threshold_values) && length(score_threshold_values) != 2)) {
+        score_threshold_values <- c(1.7, 2)
+    } else if (is.numeric(score_threshold_values) && length(score_threshold_values) == 2) {
+        if (score_threshold_values[1] < 0) {
+            score_threshold_values[1] <- 0
+        }
+        if (score_threshold_values[2] > 3) {
+            score_threshold_values[2] <- 3
+        }
+    }
     install_and_load_required_packages(c("MALDIquant", "stats", "parallel"))
     # Rename the trim function
     trim_spectra <- get(x = "trim", pos = "package:MALDIquant")
@@ -6222,13 +6573,11 @@ spectral_typer_score_similarity_index <- function(spectra_database, spectra_test
     if (score_only == TRUE) {
         for (r in 1:number_of_samples) {
             for (w in 1:database_size) {
-                if (score[r,w]>=2) {
+                if (score[r,w] >= score_threshold_values[2]) {
                     output[r,w] <- paste("YES","(", round(score[r,w], digits = 3), ")")
-                }
-                if (score[r,w]<1.5) {
+                } else if (score[r,w] < score_threshold_values[1]) {
                     output[r,w] <- paste("NO", "(", round(score[r,w], digits = 3), ")")
-                }
-                if (score[r,w]>=1.5 && score[r,w]<2) {
+                } else if (score[r,w] >= score_threshold_values[1] && score[r,w] < score_threshold_values[2]) {
                     output[r,w] <- paste("NI","(", round(score[r,w], digits = 3), ")")
                 }
             }
@@ -6236,13 +6585,11 @@ spectral_typer_score_similarity_index <- function(spectra_database, spectra_test
     } else {
         for (r in 1:number_of_samples) {
             for (w in 1:database_size) {
-                if (score[r,w] >= 2) {
+                if (score[r,w] >= score_threshold_values[2]) {
                     output[r,w] <- paste("YES","(Score:", round(score[r,w], digits = 3), "), ","(F:", matching_signals_matrix_all[r,w], "/", output_list[[r]]$number_of_signals_samples, " = ", round(fit_matrix_all[r,w], digits = 3), ",", "RF:", matching_signals_matrix_all[r,w], "/", number_of_signals_database_matrix_all[r,w], " = ", round(retrofit_matrix_all[r,w], digits = 3), ",", "SI:", round(similarity_index_matrix_all[r,w], digits = 3), ")")
-                }
-                if (score[r,w] < 1.5) {
+                } else if (score[r,w] < score_threshold_values[1]) {
                     output[r,w] <- paste("NO","(Score:", round(score[r,w], digits = 3), "), ","(F:", matching_signals_matrix_all[r,w], "/", output_list[[r]]$number_of_signals_samples, " = ", round(fit_matrix_all[r,w], digits = 3), ",", "RF:", matching_signals_matrix_all[r,w], "/", number_of_signals_database_matrix_all[r,w], " = ", round(retrofit_matrix_all[r,w], digits = 3), ",", "SI:", round(similarity_index_matrix_all[r,w], digits = 3), ")")
-                }
-                if (score[r,w] >= 1.5 && score[r,w] < 2) {
+                } else if (score[r,w] >= score_threshold_values[1] && score[r,w] < score_threshold_values[2]) {
                     output[r,w] <- paste("NI","(Score:", round(score[r,w], digits = 3), "), ","(F:", matching_signals_matrix_all[r,w], "/", output_list[[r]]$number_of_signals_samples, " = ", round(fit_matrix_all[r,w], digits = 3), ",", "RF:", matching_signals_matrix_all[r,w], "/", number_of_signals_database_matrix_all[r,w], " = ", round(retrofit_matrix_all[r,w], digits = 3), ",", "SI:", round(similarity_index_matrix_all[r,w], digits = 3), ")")
                 }
             }
@@ -6263,13 +6610,13 @@ spectral_typer_score_similarity_index <- function(spectra_database, spectra_test
 
 ################################################ SPECTRAL VARIABILITY ESTIMATION
 # The function takes a list of spectra and calculates the variability within the spectral dataset provided, in terms of the mean of the coefficients of variation for all the signals.
-spectral_variability_estimation <- function(spectra, folder_list = NULL, peak_picking_SNR = 3, peak_picking_algorithm = "SuperSmoother", spectra_format = "xmass", peak_picking_mode = "all", signals_to_take = 25, tof_mode = "linear", peaks_deisotoping = FALSE, allow_parallelization = FALSE) {
+spectral_variability_estimation <- function(spectra, folder_list = NULL, peak_picking_SNR = 3, peak_picking_algorithm = "SuperSmoother", spectra_format = "xmass", peak_picking_mode = "all", signals_to_take = 25, tof_mode = "linear", peak_deisotoping = FALSE, allow_parallelization = FALSE) {
     install_and_load_required_packages("MALDIquant")
     ### Peak picking
     if (peak_picking_mode == "most intense") {
         peaks <- most_intense_signals(spectra, signals_to_take = signals_to_take, tof_mode = tof_mode)
     } else if (peak_picking_mode == "all") {
-        peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, SNR = peak_picking_SNR, tof_mode = tof_mode, allow_parallelization = allow_parallelization, deisotope_peaklist = peaks_deisotoping)
+        peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, SNR = peak_picking_SNR, tof_mode = tof_mode, allow_parallelization = allow_parallelization, deisotope_peaklist = peak_deisotoping)
     }
     peaks <- align_and_filter_peaks(peaks, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, peak_filtering_frequency_threshold_percent = 0, low_intensity_peak_removal_threshold_percent = 0)
     ### Replace the name of the spectra/peaks with the class (to identify the spectra under the same entry)
@@ -6832,7 +7179,7 @@ partition_spectral_dataset <- function(spectra, partitioning_method = c("space",
 ############################################### EXTRACT FEATURES FROM MODEL LIST
 # The function takes an RData workspace as input, in which there are all the models. The model_list is a list in which each element corresponds to a list containing the model object, the feature list, the class list and the outcome list and its tuning/cross-validation performance. If the input is the model list, the same operations are performed (only the import of the model_list from the RData is skipped).
 # The function returns a vector of features, sorted according to the importance in all the models, and a dataframe listing the features for each model.
-extract_feature_list_from_model_list <- function(filepath_R, model_list_object = "model_list", features_to_return = 20) {
+extract_feature_list_from_model_list <- function(filepath_R, features_to_return = 20) {
     if (!is.list(filepath_R)) {
         ### LOAD THE R WORKSPACE WITH THE MODEL LIST
         # Create a temporary environment
@@ -6840,7 +7187,7 @@ extract_feature_list_from_model_list <- function(filepath_R, model_list_object =
         # Load the workspace
         load(filepath_R, envir = temporary_environment)
         # Get the models (R objects) from the workspace
-        model_list <- get(model_list_object, pos = temporary_environment)
+        model_list <- get("model_list", pos = temporary_environment)
     } else if (is.list(filepath_R)) {
         model_list <- filepath_R
     }
@@ -6893,6 +7240,9 @@ extract_feature_list_from_model_list <- function(filepath_R, model_list_object =
     } else {
         model_features <- model_features
     }
+    # Convert it to a matrix
+    model_features <- as.matrix(cbind(model_features))
+    colnames(model_features) <- "Features"
     ### Return
     return(list(model_features = model_features, model_features_matrix = model_features_matrix))
 }
@@ -6910,7 +7260,7 @@ extract_feature_list_from_model_list <- function(filepath_R, model_list_object =
 ######################################## EXTRACT COMMON FEATURES FROM MODEL LIST
 # The function takes an RData workspace as input, in which there are all the models. The model_list is a list in which each element corresponds to a list containing the model object, the feature list, the class list and the outcome list and its tuning/cross-validation performance. If the input is the model list, the same operations are performed (only the import of the model_list from the RData is skipped).
 # The function returns a vector of common features (which can be limited in length).
-extract_common_features_from_model_list <- function(filepath_R, model_list_object = "model_list", features_to_return = 20) {
+extract_common_features_from_model_list <- function(filepath_R, features_to_return = 20) {
     if (!is.list(filepath_R)) {
         ### LOAD THE R WORKSPACE WITH THE MODEL LIST
         # Create a temporary environment
@@ -6918,7 +7268,7 @@ extract_common_features_from_model_list <- function(filepath_R, model_list_objec
         # Load the workspace
         load(filepath_R, envir = temporary_environment)
         # Get the models (R objects) from the workspace
-        model_list <- get(model_list_object, pos = temporary_environment)
+        model_list <- get("model_list", pos = temporary_environment)
     } else if (is.list(filepath_R)) {
         model_list <- filepath_R
     }
@@ -6970,7 +7320,7 @@ extract_common_features_from_model_list <- function(filepath_R, model_list_objec
 ############################################ EXTRACT PERFORMANCE FROM MODEL LIST
 # The function takes an RData workspace as input, in which there are all the models. The model_list is a list in which each element corresponds to a list containing the model object, the feature list, the class list and the outcome list and its tuning/cross-validation performance. If the input is the model list, the same operations are performed (only the import of the model_list from the RData is skipped).
 # The function returns a matrix, listing the performance for each model.
-extract_performance_matrix_from_model_list <- function(filepath_R, model_list_object = "model_list") {
+extract_performance_matrix_from_model_list <- function(filepath_R) {
     if (!is.list(filepath_R)) {
         ### LOAD THE R WORKSPACE WITH THE MODEL LIST
         # Create a temporary environment
@@ -6978,7 +7328,7 @@ extract_performance_matrix_from_model_list <- function(filepath_R, model_list_ob
         # Load the workspace
         load(filepath_R, envir = temporary_environment)
         # Get the models (R objects) from the workspace
-        model_list <- get(model_list_object, pos = temporary_environment)
+        model_list <- get("model_list", pos = temporary_environment)
     } else if (is.list(filepath_R)) {
         model_list <- filepath_R
     }
@@ -7011,6 +7361,11 @@ extract_performance_matrix_from_model_list <- function(filepath_R, model_list_ob
     return(model_performance_matrix)
 }
 
+
+
+
+
+################################################################################
 
 
 
@@ -7648,6 +8003,7 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -7687,7 +8043,7 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 ### Program version (Specified by the program writer!!!!)
-R_script_version <- "2017.05.23.0"
+R_script_version <- "2017.05.31.0"
 ### GitHub URL where the R file is
 github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Pixel-Typer/master/MS%20PIXEL%20TYPER.R"
 ### GitHub URL of the program's WIKI
@@ -7734,7 +8090,8 @@ preprocess_spectra_in_packages_of <- 0
 mass_range <- c(3000, 15000)
 spectral_alignment_algorithm <- NULL
 spectral_alignment_reference <- NULL
-peaks_deisotoping <- FALSE
+peak_deisotoping <- FALSE
+peak_enveloping <- FALSE
 RData_file_integrity <- FALSE
 classification_mode <- "pixel"
 pixel_grouping <- "single"
@@ -7750,7 +8107,7 @@ preprocessing_parameters <- list(mass_range = mass_range, transformation_algorit
 
 ################## Values of the variables (for displaying and dumping purposes)
 tof_mode_value <- "Linear"
-filepath_import_value <- NULL
+filepath_import_value <- ""
 output_folder_value <- output_folder
 spectra_format_value <- "imzML"
 peaks_filtering_value <- "YES"
@@ -7758,13 +8115,13 @@ peak_picking_algorithm_value <- "Super Smoother"
 low_intensity_peak_removal_threshold_method_value <- "element-wise"
 allow_parallelization_value <- "NO"
 transform_data_value <- "NO"
-smoothing_value <- paste("YES", "\n( ", "SavitzkyGolay", ",\n" , "medium", " )", sep = "")
-baseline_subtraction_value <- paste("YES", "\n( ", "SNIP", ",\niterations: ", "200", " )", sep = "")
-normalization_value <- paste("YES", "\n( ", "TIC", " )", sep = "")
+smoothing_value <- paste0("YES", "\n( ", "Savitzky-Golay", ",\n" , "medium", " )")
+baseline_subtraction_value <- paste0("YES", "\n( ", "SNIP", ",\niterations: ", "200", " )")
+normalization_value <- paste0("YES", "\n( ", "TIC", " )")
 spectral_alignment_value <- "NO"
 spectral_alignment_algorithm_value <- ""
 spectral_alignment_reference_value <- ""
-peaks_deisotoping_value <- "NO"
+peak_deisotoping_enveloping_value <- "None"
 RData_file_integrity_value <- "NO RDATA FILE\nSELECTED"
 classification_mode_value <- "pixel"
 decision_method_ensemble_value <- paste0(decision_method_ensemble, "\n(", vote_weights_ensemble, ")")
@@ -7911,16 +8268,24 @@ preprocessing_window_function <- function() {
     # Transform the data
     transform_data_choice <- function() {
         # Ask for the algorithm
-        transform_data_algorithm <- select.list(c("sqrt", "log", "log2", "log10", "none"), title = "Data transformation", multiple = FALSE, preselect = "none")
-        # Default
-        if (transform_data_algorithm == "" || transform_data_algorithm == "none") {
+        transform_data_algorithm_input <- select.list(c("Square root", "Natural logarithm", "Decimal logarithm", "Binary Logarithm", "None"), title = "Data transformation", multiple = FALSE, preselect = "None")
+        # Default and fix
+        if (transform_data_algorithm_input == "Square root") {
+            transform_data_algorithm <- "sqrt"
+        } else if (transform_data_algorithm_input == "Natural logarithm") {
+            transform_data_algorithm <- "log"
+        } else if (transform_data_algorithm_input == "Binary Logarithm") {
+            transform_data_algorithm <- "log2"
+        } else if (transform_data_algorithm_input == "Decimal logarithm") {
+            transform_data_algorithm <- "log10"
+        } else if (transform_data_algorithm_input == "" || transform_data_algorithm_input == "None") {
             transform_data_algorithm <- NULL
         }
         # Set the value of the displaying label
         if (!is.null(transform_data_algorithm)) {
-            transform_data_value <- paste0("YES", "\n( ", transform_data_algorithm, " )")
+            transform_data_value <- paste0("YES", "\n( ", transform_data_algorithm_input, " )")
         } else {
-            transform_data_value <- "NO"
+            transform_data_value <- "None"
         }
         transform_data_value_label <- tklabel(preproc_window, text = transform_data_value, font = label_font, bg = "white", width = 20, height = 2)
         tkgrid(transform_data_value_label, row = 3, column = 2, padx = c(5, 5), pady = c(5, 5))
@@ -7931,26 +8296,27 @@ preprocessing_window_function <- function() {
     # Smoothing
     smoothing_choice <- function() {
         # Ask for the algorithm
-        smoothing_algorithm <- select.list(c("SavitzkyGolay","MovingAverage", "none"), title = "Smoothing algorithm", multiple = FALSE, preselect = "SavitzkyGolay")
-        # Default
-        if (smoothing_algorithm == "") {
+        smoothing_algorithm_input <- select.list(c("Savitzky-Golay","Moving Average", "None"), title = "Smoothing algorithm", multiple = FALSE, preselect = "SavitzkyGolay")
+        # Default and fix
+        if (smoothing_algorithm_input == "" || smoothing_algorithm_input == "Savitzky-Golay") {
             smoothing_algorithm <- "SavitzkyGolay"
-        }
-        if (smoothing_algorithm == "none") {
+        } else if (smoothing_algorithm_input == "Moving Average") {
+            smoothing_algorithm <- "MovingAverage"
+        } else if (smoothing_algorithm_input == "None") {
             smoothing_algorithm <- NULL
         }
         # Strength
         if (!is.null(smoothing_algorithm)) {
-            smoothing_strength <- select.list(c("medium","strong","stronger"), title = "Smoothing strength", multiple = FALSE, preselect = "medium")
+            smoothing_strength <- select.list(c("medium", "strong", "stronger"), title = "Smoothing strength", multiple = FALSE, preselect = "medium")
             if (smoothing_strength == "") {
                 smoothing_strength <- "medium"
             }
         }
         # Set the value of the displaying label
         if (!is.null(smoothing_algorithm)) {
-            smoothing_value <- paste0("YES", "\n( ", smoothing_algorithm, ",\n" , smoothing_strength, " )")
+            smoothing_value <- paste0("YES", "\n( ", smoothing_algorithm_input, ",\n" , smoothing_strength, " )")
         } else {
-            smoothing_value <- "NO"
+            smoothing_value <- "None"
         }
         smoothing_value_label <- tklabel(preproc_window, text = smoothing_value, font = label_font, bg = "white", width = 20, height = 3)
         tkgrid(smoothing_value_label, row = 4, column = 2, padx = c(5, 5), pady = c(5, 5))
@@ -7962,13 +8328,13 @@ preprocessing_window_function <- function() {
     # Baseline subtraction
     baseline_subtraction_choice <- function() {
         # Ask for the algorithm
-        baseline_subtraction_algorithm <- select.list(c("SNIP", "TopHat", "ConvexHull", "median", "none"), title = "Baseline subtraction algorithm", multiple = FALSE, preselect = "SNIP")
+        baseline_subtraction_algorithm <- select.list(c("SNIP", "TopHat", "ConvexHull", "median", "None"), title = "Baseline subtraction algorithm", multiple = FALSE, preselect = "SNIP")
         # Default
         if (baseline_subtraction_algorithm == "") {
             baseline_subtraction_algorithm <- "SNIP"
             baseline_subtraction_algorithm_parameter <- 200
         }
-        if (baseline_subtraction_algorithm == "none") {
+        if (baseline_subtraction_algorithm == "None") {
             baseline_subtraction_algorithm <- NULL
         }
         # SNIP
@@ -7995,7 +8361,7 @@ preprocessing_window_function <- function() {
         } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "ConvexHull") {
             baseline_subtraction_value <- paste0("YES", "\n( ", baseline_subtraction_algorithm, ")")
         } else {
-            baseline_subtraction_value <- "NO"
+            baseline_subtraction_value <- "None"
         }
         baseline_subtraction_value_label <- tklabel(preproc_window, text = baseline_subtraction_value, font = label_font, bg = "white", width = 20, height = 3)
         tkgrid(baseline_subtraction_value_label, row = 5, column = 3, padx = c(5, 5), pady = c(5, 5))
@@ -8007,11 +8373,11 @@ preprocessing_window_function <- function() {
     # Normalization
     normalization_choice <- function() {
         # Ask for the algorithm
-        normalization_algorithm <- select.list(c("TIC", "PQN", "median", "none"), title = "Normalization algorithm", multiple = FALSE, preselect = "TIC")
+        normalization_algorithm <- select.list(c("TIC", "RMS", "PQN", "median", "None"), title = "Normalization algorithm", multiple = FALSE, preselect = "TIC")
         if (normalization_algorithm == "") {
             normalization_algorithm <- "TIC"
         }
-        if (normalization_algorithm == "none") {
+        if (normalization_algorithm == "None") {
             normalization_algorithm <- NULL
         }
         # TIC
@@ -8035,10 +8401,10 @@ preprocessing_window_function <- function() {
                 normalization_value <- paste0("YES", "\n( ", normalization_algorithm, " )")
             }
         } else {
-            normalization_value <- "NO"
+            normalization_value <- "None"
         }
         normalization_value_label <- tklabel(preproc_window, text = normalization_value, font = label_font, bg = "white", width = 20, height = 4)
-        tkgrid(normalization_value_label, row = 6, column = 3, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(normalization_value_label, row = 7, column = 3, padx = c(5, 5), pady = c(5, 5))
         # Escape the function
         .GlobalEnv$normalization_mass_range <- normalization_mass_range
         .GlobalEnv$normalization_algorithm <- normalization_algorithm
@@ -8047,19 +8413,19 @@ preprocessing_window_function <- function() {
     # Spectral alignment
     spectral_alignment_choice <- function() {
         # Ask for the algorithm
-        spectral_alignment_algorithm <- select.list(c("cubic", "quadratic", "linear", "lowess", "none"), title = "Spectral alignment algorithm", multiple = FALSE, preselect = "cubic")
+        spectral_alignment_algorithm <- select.list(c("cubic", "quadratic", "linear", "lowess", "None"), title = "Spectral alignment algorithm", multiple = FALSE, preselect = "cubic")
         # Default
         if (spectral_alignment_algorithm == "") {
-            spectral_alignment_algorithm <- "none"
+            spectral_alignment_algorithm <- "None"
         }
-        if (spectral_alignment_algorithm == "none") {
+        if (spectral_alignment_algorithm == "None") {
             spectral_alignment_algorithm <- NULL
         }
         ## Ask for the reference peaklist
         if (!is.null(spectral_alignment_algorithm)) {
-            spectral_alignment_reference <- select.list(c("auto","average spectrum", "skyline spectrum"), title = "Spectral alignment reference", multiple = FALSE, preselect = "auto")
+            spectral_alignment_reference <- select.list(c("auto","average spectrum", "skyline spectrum"), title = "Spectral alignment reference", multiple = FALSE, preselect = "average spectrum")
             if (spectral_alignment_reference == "") {
-                spectral_alignment_reference <- "auto"
+                spectral_alignment_reference <- "average spectrum"
             }
         } else {
             spectral_alignment_reference <- NULL
@@ -8068,7 +8434,7 @@ preprocessing_window_function <- function() {
         if (!is.null(spectral_alignment_algorithm)) {
             spectral_alignment_value <- paste0("YES", "\n( ", spectral_alignment_algorithm, ",\n", spectral_alignment_reference, " )")
         } else {
-            spectral_alignment_value <- "NO"
+            spectral_alignment_value <- "None"
         }
         spectral_alignment_value_label <- tklabel(preproc_window, text = spectral_alignment_value, font = label_font, bg = "white", width = 20, height = 3)
         tkgrid(spectral_alignment_value_label, row = 8, column = 2, padx = c(5, 5), pady = c(5, 5))
@@ -8141,7 +8507,7 @@ preprocessing_window_function <- function() {
     tof_mode_label <- tklabel(preproc_window, text="Select the TOF mode", font = label_font, bg = "white", width = 20)
     tof_mode_entry <- tkbutton(preproc_window, text="Choose the TOF mode", command = tof_mode_choice, font = button_font, bg = "white", width = 20)
     # Transform the data
-    transform_data_button <- tkbutton(preproc_window, text="Transform the data", command = transform_data_choice, font = button_font, bg = "white", width = 20)
+    transform_data_button <- tkbutton(preproc_window, text="Data transformation", command = transform_data_choice, font = button_font, bg = "white", width = 20)
     # Smoothing
     smoothing_button <- tkbutton(preproc_window, text="Smoothing", command = smoothing_choice, font = button_font, bg = "white", width = 20)
     # Baseline subtraction
@@ -8176,14 +8542,14 @@ preprocessing_window_function <- function() {
     tkgrid(baseline_subtraction_button, row = 5, column = 1, padx = c(5, 5), pady = c(5, 5))
     tkgrid(baseline_subtraction_algorithm_parameter_entry, row = 5, column = 2, padx = c(5, 5), pady = c(5, 5))
     tkgrid(baseline_subtraction_value_label, row = 5, column = 3, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(normalization_button, row = 6, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(normalization_mass_range_entry, row = 6, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(normalization_value_label, row = 6, column = 3, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(preprocess_spectra_in_packages_of_label, row = 7, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(preprocess_spectra_in_packages_of_entry, row = 7, column = 2, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(normalization_button, row = 7, column = 1, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(normalization_mass_range_entry, row = 7, column = 2, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(normalization_value_label, row = 7, column = 3, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(preprocess_spectra_in_packages_of_label, row = 9, column = 1, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(preprocess_spectra_in_packages_of_entry, row = 9, column = 2, padx = c(5, 5), pady = c(5, 5))
     tkgrid(spectral_alignment_button, row = 8, column = 1, padx = c(5, 5), pady = c(5, 5))
     tkgrid(spectral_alignment_value_label, row = 8, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(commit_preprocessing_button, row = 9, column = 1, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(commit_preprocessing_button, row = 10, column = 1, columnspan = 3, padx = c(5, 5), pady = c(5, 5))
 }
 
 ##### File type export MATRIX
@@ -8386,28 +8752,32 @@ peak_picking_algorithm_choice <- function() {
     .GlobalEnv$peak_picking_algorithm_value <- peak_picking_algorithm_value
 }
 
-##### Peaks deisotoping
-peaks_deisotoping_choice <- function() {
+##### Peaks deisotoping or enveloping
+peak_deisotoping_enveloping_choice <- function() {
     # Catch the value from the menu
-    peaks_deisotoping <- select.list(c("YES","NO"), title = "Peak deisotoping", multiple = FALSE, preselect = "NO")
+    peak_deisotoping_enveloping <- select.list(c("Peak Deisotoping","Peak Enveloping", "None"), title = "Peak Deisotoping/Enveloping", multiple = FALSE, preselect = "Peak Deisotoping")
     # Default
-    if (peaks_deisotoping == "YES") {
-        peaks_deisotoping <- TRUE
+    if (peak_deisotoping_enveloping == "") {
+        peak_deisotoping_enveloping <- "Peak Deisotoping"
     }
-    if (peaks_deisotoping == "NO" || peaks_deisotoping == "") {
-        peaks_deisotoping <- FALSE
+    if (peak_deisotoping_enveloping == "Peak Deisotoping") {
+        peak_deisotoping <- TRUE
+        peak_enveloping <- FALSE
+    } else if (peak_deisotoping_enveloping == "Peak Enveloping") {
+        peak_deisotoping <- FALSE
+        peak_enveloping <- TRUE
+    } else if (peak_deisotoping_enveloping == "None") {
+        peak_deisotoping <- FALSE
+        peak_enveloping <- FALSE
     }
     # Set the value of the displaying label
-    if (peaks_deisotoping == TRUE) {
-        peaks_deisotoping_value <- "YES"
-    } else {
-        peaks_deisotoping_value <- "   NO   "
-    }
-    peaks_deisotoping_value_label <- tklabel(window, text = peaks_deisotoping_value, font = label_font, bg = "white", width = 20)
-    tkgrid(peaks_deisotoping_value_label, row = 2, column = 4)
+    peak_deisotoping_enveloping_value <- peak_deisotoping_enveloping
+    peak_deisotoping_enveloping_value_label <- tklabel(window, text = peak_deisotoping_enveloping_value, font = label_font, bg = "white", width = 20)
+    tkgrid(peak_deisotoping_enveloping_value_label, row = 2, column = 4, padx = c(10, 10), pady = c(10, 10))
     # Escape the function
-    .GlobalEnv$peaks_deisotoping <- peaks_deisotoping
-    .GlobalEnv$peaks_deisotoping_value <- peaks_deisotoping_value
+    .GlobalEnv$peak_deisotoping <- peak_deisotoping
+    .GlobalEnv$peak_enveloping <- peak_enveloping
+    .GlobalEnv$peak_deisotoping_enveloping_value <- peak_deisotoping_enveloping_value
 }
 
 ##### Decision method ensemble
@@ -8475,7 +8845,7 @@ run_ms_pixel_typer_function <- function() {
         plot_legends <- select.list(c("sample name", "legend", "plot name"), multiple = TRUE, preselect = "legend", title = "Legend to plot")
         setTkProgressBar(program_progress_bar, value = 0.25, title = NULL, label = "25 %")
         ########## Run the classification function
-        classification_of_patients <- spectral_classification(spectra_path = filepath_import, filepath_R = filepath_R, model_list_object = "model_list", classification_mode = classification_mode, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = peaks_deisotoping, preprocessing_parameters = preprocessing_parameters, tof_mode = tof_mode, allow_parallelization = allow_parallelization, decision_method_ensemble = decision_method_ensemble, vote_weights_ensemble = vote_weights_ensemble, pixel_grouping = pixel_grouping, moving_window_size = moving_window_size, number_of_hca_nodes = number_of_hca_nodes, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 50, iterations_with_no_change_GA = 5, seed = 12345, plot_figures = TRUE, plot_graphs = TRUE, plot_legends = plot_legends)
+        classification_of_patients <- spectral_classification(spectra_path = filepath_import, filepath_R = filepath_R, classification_mode = classification_mode, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = peak_deisotoping, preprocessing_parameters = preprocessing_parameters, tof_mode = tof_mode, allow_parallelization = allow_parallelization, decision_method_ensemble = decision_method_ensemble, vote_weights_ensemble = vote_weights_ensemble, pixel_grouping = pixel_grouping, moving_window_size = moving_window_size, number_of_hca_nodes = number_of_hca_nodes, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 50, iterations_with_no_change_GA = 5, seed = 12345, plot_figures = TRUE, plot_graphs = TRUE, plot_legends = plot_legends)
         # Escape the function
         .GlobalEnv$classification_of_patients <- classification_of_patients
         setTkProgressBar(program_progress_bar, value = 0.75, title = NULL, label = "75 %")
@@ -8595,24 +8965,18 @@ ms_pixel_typer_data_dumper_function <- function() {
             ### Dump the files
             ## MSI classification matrix
             if (file_type_export_matrix == "csv") {
-                try(write.csv(classification_of_patients$final_result_matrix_msi_list[[p]], file = paste("MSI classification matrix", ".", file_type_export_matrix, sep = "")), silent = TRUE)
+                try(write.csv(classification_of_patients$final_result_matrix_msi_list[[p]], file = paste0("MSI classification matrix", ".", file_type_export_matrix)), silent = TRUE)
             } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
                 try({
-                    wb = loadWorkbook(filename = paste("MSI classification matrix", ".", file_type_export_matrix, sep = ""), create = TRUE)
-                    createSheet(wb, name = "MSI classification")
-                    writeWorksheet(wb, data = classification_of_patients$final_result_matrix_msi_list[[p]], sheet = "MSI classification")
-                    saveWorkbook(wb)
+                    writeWorksheetToFile(file = paste0("MSI classification matrix", ".", file_type_export_matrix), data = classification_of_patients$final_result_matrix_msi_list[[p]], sheet = "MSI classification", clearSheets = TRUE)
                 }, silent = TRUE)
             }
             ## MS profile matrix
             if (file_type_export_matrix == "csv") {
-                try(write.csv(classification_of_patients$final_result_matrix_profile_list[[p]], file = paste("MS profile classification matrix", ".", file_type_export_matrix, sep = "")), silent = TRUE)
+                try(write.csv(classification_of_patients$final_result_matrix_profile_list[[p]], file = paste0("MS profile classification matrix", ".", file_type_export_matrix)), silent = TRUE)
             } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
                 try({
-                    wb = loadWorkbook(filename = paste("MS profile classification matrix", ".", file_type_export_matrix, sep = ""), create = TRUE)
-                    createSheet(wb, name = "MS profile classification")
-                    writeWorksheet(wb, data = classification_of_patients$final_result_matrix_profile_list[[p]], sheet = "MS profile classification")
-                    saveWorkbook(wb)
+                    writeWorksheetToFile(file = paste0("MS profile classification matrix", ".", file_type_export_matrix), data = classification_of_patients$final_result_matrix_profile_list[[p]], sheet = "MS profile classification", clearSheets = TRUE)
                 }, silent = TRUE)
             }
             ## MSI pixel classification
@@ -8655,24 +9019,18 @@ ms_pixel_typer_data_dumper_function <- function() {
             }
             ## Ensemble classification MSI matrix
             if (file_type_export_matrix == "csv") {
-                try(write.csv(classification_of_patients$classification_ensemble_matrix_msi_all[[p]], file = paste("Ensemble MSI classification matrix", ".", file_type_export_matrix, sep = "")), silent = TRUE)
+                try(write.csv(classification_of_patients$classification_ensemble_matrix_msi_all[[p]], file = paste0("Ensemble MSI classification matrix", ".", file_type_export_matrix)), silent = TRUE)
             } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
                 try({
-                    wb = loadWorkbook(filename = paste("Ensemble MSI classification matrix", ".", file_type_export_matrix, sep = ""), create = TRUE)
-                    createSheet(wb, name = "Ensemble MSI classification")
-                    writeWorksheet(wb, data = classification_of_patients$classification_ensemble_matrix_msi_all[[p]], sheet = "Ensemble MSI classification")
-                    saveWorkbook(wb)
+                    writeWorksheetToFile(file = paste0("Ensemble MSI classification matrix", ".", file_type_export_matrix), data = classification_of_patients$classification_ensemble_matrix_msi_all[[p]], sheet = "Ensemble MSI classification", clearSheets = TRUE)
                 }, silent = TRUE)
             }
             ## Ensemble classification profile matrix
             if (file_type_export_matrix == "csv") {
-                try(write.csv(classification_of_patients$classification_ensemble_matrix_profile_all[[p]], file = paste("Ensemble MS profile classification matrix", ".", file_type_export_matrix, sep = "")), silent = TRUE)
+                try(write.csv(classification_of_patients$classification_ensemble_matrix_profile_all[[p]], file = paste0("Ensemble MS profile classification matrix", ".", file_type_export_matrix)), silent = TRUE)
             } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
                 try({
-                    wb = loadWorkbook(filename = paste("Ensemble MS profile classification matrix", ".", file_type_export_matrix, sep = ""), create = TRUE)
-                    createSheet(wb, name = "Ensemble MS classification")
-                    writeWorksheet(wb, data = classification_of_patients$classification_ensemble_matrix_profile_all[[p]], sheet = "Ensemble MS classification")
-                    saveWorkbook(wb)
+                    writeWorksheetToFile(file = paste0("Ensemble MS profile classification matrix", ".", file_type_export_matrix), data = classification_of_patients$classification_ensemble_matrix_profile_all[[p]], sheet = "Ensemble MS classification", clearSheets = TRUE)
                 }, silent = TRUE)
             }
             ## Ensemble MSI pixel classification
@@ -8740,13 +9098,10 @@ ms_pixel_typer_data_dumper_function <- function() {
         ## Ensemble classification profile matrix ALL
         setwd(subfolder)
         if (file_type_export_matrix == "csv") {
-            try(write.csv(classification_of_patients$classification_ensemble_matrix_profile_all, file = paste("Ensemble MS profile classification matrix ALL", ".", file_type_export_matrix, sep = "")), silent = TRUE)
+            try(write.csv(classification_of_patients$classification_ensemble_matrix_profile_all, file = paste0("Ensemble MS profile classification matrix ALL", ".", file_type_export_matrix)), silent = TRUE)
         } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
             try({
-                wb = loadWorkbook(filename = paste("Ensemble MS profile classification matrix ALL", ".", file_type_export_matrix, sep = ""), create = TRUE)
-                createSheet(wb, name = "Ensemble MS classification")
-                writeWorksheet(wb, data = classification_of_patients$classification_ensemble_matrix_profile_all, sheet = "Ensemble MS classification", header = TRUE, rownames = rownames(classification_of_patients$classification_ensemble_matrix_profile_all))
-                saveWorkbook(wb)
+                writeWorksheetToFile(file = paste0("Ensemble MS profile classification matrix ALL", ".", file_type_export_matrix), data = classification_of_patients$classification_ensemble_matrix_profile_all, sheet = "Ensemble MS classification", header = TRUE, rownames = rownames(classification_of_patients$classification_ensemble_matrix_profile_all))
             }, silent = TRUE)
         }
         if (files_dumped == TRUE) {
@@ -8940,7 +9295,7 @@ browse_output_button <- tkbutton(window, text = "BROWSE\nOUTPUT FOLDER...", comm
 # Peak picking method
 peak_picking_algorithm_entry <- tkbutton(window, text = "PEAK PICKING\nALGORITHM", command = peak_picking_algorithm_choice, font = button_font, bg = "white", width = 20)
 # Peaks deisotoping
-peaks_deisotoping_entry <- tkbutton(window, text = "PEAK\nDEISOTOPING", command = peaks_deisotoping_choice, font = button_font, bg = "white", width = 20)
+peak_deisotoping_entry <- tkbutton(window, text = "PEAK\nDEISOTOPING", command = peak_deisotoping_enveloping_choice, font = button_font, bg = "white", width = 20)
 # Decision method ensemble
 decision_method_ensemble_entry <- tkbutton(window, text = "DECISION METHOD\nENSEMBLE", command = decision_method_ensemble_choice, font = button_font, bg = "white", width = 20)
 # Classification mode
@@ -8968,7 +9323,7 @@ download_updates_button <- tkbutton(window, text = "DOWNLOAD\nUPDATE", command =
 file_type_export_matrix_value_label <- tklabel(window, text = file_type_export_matrix, font = label_font, bg = "white", width = 20)
 file_type_export_images_value_label <- tklabel(window, text = file_type_export_images, font = label_font, bg = "white", width = 20)
 peak_picking_algorithm_value_label <- tklabel(window, text = peak_picking_algorithm_value, font = label_font, bg = "white", width = 20, height = 2)
-peaks_deisotoping_value_label <- tklabel(window, text = peaks_deisotoping_value, font = label_font, bg = "white", width = 20)
+peak_deisotoping_enveloping_value_label <- tklabel(window, text = peak_deisotoping_enveloping_value, font = label_font, bg = "white", width = 20)
 allow_parallelization_value_label <- tklabel(window, text = allow_parallelization_value, font = label_font, bg = "white", width = 20)
 classification_mode_value_label <- tklabel(window, text = classification_mode_value, font = label_font, bg = "white", width = 20)
 RData_file_integrity_value_label <- tklabel(window, text = RData_file_integrity_value, font = label_font, bg = "white", width = 20)
@@ -8982,8 +9337,8 @@ check_for_updates_value_label <- tklabel(window, text = check_for_updates_value,
 tkgrid(title_label, row = 1, column = 1, columnspan = 2, padx = c(20, 20), pady = c(20, 20))
 tkgrid(select_samples_button, row = 7, column = 2, padx = c(10, 10), pady = c(10, 10))
 tkgrid(browse_output_button, row = 7, column = 1, padx = c(10, 10), pady = c(10, 10))
-#tkgrid(peaks_deisotoping_entry, row = 2, column = 3, padx = c(10, 10), pady = c(10, 10))
-#tkgrid(peaks_deisotoping_value_label, row = 2, column = 4, padx = c(10, 10), pady = c(10, 10))
+#tkgrid(peak_deisotoping_entry, row = 2, column = 3, padx = c(10, 10), pady = c(10, 10))
+#tkgrid(peak_deisotoping_enveloping_value_label, row = 2, column = 4, padx = c(10, 10), pady = c(10, 10))
 #tkgrid(peak_picking_algorithm_entry, row = 2, column = 1, padx = c(10, 10), pady = c(10, 10))
 #tkgrid(peak_picking_algorithm_value_label, row = 2, column = 2, padx = c(10, 10), pady = c(10, 10))
 tkgrid(file_type_export_matrix_entry, row = 6, column = 1, padx = c(10, 10), pady = c(10, 10))
@@ -9008,3 +9363,4 @@ tkgrid(check_for_updates_value_label, row = 1, column = 4, padx = c(10, 10), pad
 
 
 ################################################################################
+
