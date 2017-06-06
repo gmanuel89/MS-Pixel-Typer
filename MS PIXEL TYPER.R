@@ -72,11 +72,11 @@ install_and_load_required_packages <- function(required_packages, repository = "
                 update.packages(ask = FALSE, checkBuilt = TRUE, quiet = TRUE, verbose = FALSE)
             }
             if (print_messages == TRUE) {
-                cat("Packages updated")
+                cat("\nPackages updated\n")
             }
         } else {
             if (print_messages == TRUE) {
-                cat("Packages cannot be updated due to internet connection problems")
+                cat("\nPackages cannot be updated due to internet connection problems\n")
             }
         }
     }
@@ -96,19 +96,19 @@ install_and_load_required_packages <- function(required_packages, repository = "
                 install.packages(missing_packages, quiet = TRUE, verbose = FALSE)
             }
             if (print_messages == TRUE) {
-                cat("All the required packages have been installed")
+                cat("\nAll the required packages have been installed\n")
             }
             all_needed_packages_are_installed <- TRUE
         } else {
             ### If there is NO internet...
             if (print_messages == TRUE) {
-                cat("Some packages cannot be installed due to internet connection problems")
+                cat("\nSome packages cannot be installed due to internet connection problems\n")
             }
             all_needed_packages_are_installed <- FALSE
         }
     } else {
         if (print_messages == TRUE) {
-            cat("All the required packages are installed")
+            cat("\nAll the required packages are installed\n")
         }
         all_needed_packages_are_installed <- TRUE
     }
@@ -120,7 +120,7 @@ install_and_load_required_packages <- function(required_packages, repository = "
         all_needed_packages_are_installed <- TRUE
     } else {
         if (print_messages == TRUE) {
-            cat("Packages cannot be installed/loaded... Expect issues...")
+            cat("\nPackages cannot be installed/loaded... Expect issues...\n")
         }
         all_needed_packages_are_installed <- FALSE
     }
@@ -1460,7 +1460,7 @@ resample_spectra <- function(spectra, final_data_points = lowest_data_points, bi
             # lowest number of original data points
             if (final_data_points > lowest_data_points) {
                 final_data_points <- lowest_data_points
-                cat("Binning at this sample rate is not possible, the highest number of data points possible will be used")
+                cat("\nBinning at this sample rate is not possible, the highest number of data points possible will be used\n")
                 if (allow_parallelization == TRUE) {
                     # Load the required libraries
                     install_and_load_required_packages("parallel")
@@ -1508,7 +1508,7 @@ resample_spectra <- function(spectra, final_data_points = lowest_data_points, bi
             }
         }
         cat(table(sapply(spectra_binned, length)))
-        cat(paste("Equal distance between datapoints", (all(sapply(spectra_binned, isRegular)))))
+        cat(paste("\nEqual distance between datapoints\n", (all(sapply(spectra_binned, isRegular)))))
     } else {
         # Retrieve the number of datapoints
         lowest_data_points <- length(spectra@mass)
@@ -2227,9 +2227,9 @@ preprocess_spectra <- function(spectra, tof_mode = "linear", preprocessing_param
             }, silent = TRUE)
             # Return message
             if (spectral_alignment_performed == TRUE) {
-                cat("The spectral aligment has been performed successfully!")
+                cat("\nThe spectral aligment has been performed successfully!\n")
             } else {
-                cat("The spectral aligment could not be performed!")
+                cat("\nThe spectral aligment could not be performed!\n")
             }
         }
     }
@@ -4237,7 +4237,7 @@ feature_selection <- function(training_set, feature_selection_method = "ANOVA", 
         highly_correlated_features <- names(training_set_features[,highly_correlated])
         # Features to keep
         low_correlation_features <- names(training_set_features[,-highly_correlated])
-        cat(paste("The number of selected features is", length(low_correlation_features), "out of", length(training_set_features)))
+        cat(paste("\nThe number of selected features is", length(low_correlation_features), "out of", length(training_set_features)))
         # Predictors
         predictors_feature_selection <- low_correlation_features
     }
@@ -5324,8 +5324,7 @@ model_ensemble_training_and_tuning <- function(training_set_feature_selection, n
     pls_model_class_list <- pls_model_training_and_tuning$class_list
     pls_model_ID <- "pls"
     pls_model_performance <- pls_model_training_and_tuning$fs_model_performance
-    cat("Partial Least Squares")
-    cat(pls_model_features)
+    cat("\nPartial Least Squares\n")
     cat(pls_model_performance)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
@@ -5340,8 +5339,7 @@ model_ensemble_training_and_tuning <- function(training_set_feature_selection, n
     svmRadial_model_class_list <- svmRadial_model_training_and_tuning$class_list
     svmRadial_model_ID <- "svm"
     svmRadial_model_performance <- svmRadial_model_training_and_tuning$fs_model_performance
-    cat("Support Vector Machines (with Radial Basis Kernel function)")
-    cat(svmRadial_model_features)
+    cat("\nSupport Vector Machines (with Radial Basis Kernel function)\n")
     cat(svmRadial_model_performance)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
@@ -5356,8 +5354,7 @@ model_ensemble_training_and_tuning <- function(training_set_feature_selection, n
     svmPoly_model_class_list <- svmPoly_model_training_and_tuning$class_list
     svmPoly_model_ID <- "svm"
     svmPoly_model_performance <- svmPoly_model_training_and_tuning$fs_model_performance
-    cat("Support Vector Machines (with Polynomial Kernel function)")
-    cat(svmPoly_model_features)
+    cat("\nSupport Vector Machines (with Polynomial Kernel function)\n")
     cat(svmPoly_model_performance)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
@@ -8145,6 +8142,8 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 
+
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8184,7 +8183,7 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 ### Program version (Specified by the program writer!!!!)
-R_script_version <- "2017.06.06.0"
+R_script_version <- "2017.06.06.2"
 ### GitHub URL where the R file is
 github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Pixel-Typer/master/MS%20PIXEL%20TYPER.R"
 ### GitHub URL of the program's WIKI
@@ -8192,7 +8191,7 @@ github_wiki_url <- "https://github.com/gmanuel89/MS-Pixel-Typer/wiki"
 ### Name of the file when downloaded
 script_file_name <- "MS PIXEL TYPER"
 # Change log
-change_log <- "1. Bugfix\n2. Fixed GUI"
+change_log <- "1. New vote weights!!\n2. Fixed GUI"
 
 
 
@@ -8200,7 +8199,7 @@ change_log <- "1. Bugfix\n2. Fixed GUI"
 
 
 ############## INSTALL AND LOAD THE REQUIRED PACKAGES
-install_and_load_required_packages(c("tcltk", "parallel"), repository = "http://cran.mirror.garr.it/mirrors/CRAN/")
+install_and_load_required_packages(c("tcltk", "parallel"), repository = "http://cran.mirror.garr.it/mirrors/CRAN/", update_packages = TRUE, print_messages = TRUE)
 
 
 
@@ -8987,19 +8986,21 @@ run_ms_pixel_typer_function <- function() {
     setwd(output_folder)
     # Initialize the file_dumped variable
     files_dumped <- FALSE
+    # Escape the function
+    .GlobalEnv$files_dumped <- files_dumped
     ######## Run only if all the elements needed are there
     if (!is.null(filepath_import) && RData_file_integrity == TRUE) {
-        # Progress bar
-        program_progress_bar <- tkProgressBar(title = "Total progress...", label = "", min = 0, max = 1, initial = 0, width = 300)
-        setTkProgressBar(program_progress_bar, value = 0, title = NULL, label = "0 %")
         # Choose the legends to plot
         plot_legends <- select.list(c("sample name", "legend", "plot name"), multiple = TRUE, preselect = "legend", title = "Legend to plot")
-        setTkProgressBar(program_progress_bar, value = 0.25, title = NULL, label = "25 %")
+        # Progress bar
+        program_progress_bar <- tkProgressBar(title = NULL, label = "", min = 0, max = 1, initial = 0, width = 300)
+        setTkProgressBar(program_progress_bar, value = 0, title = NULL, label = "0 %")
+        setTkProgressBar(program_progress_bar, value = 0.25, title = "Performing classification...", label = "25 %")
         ########## Run the classification function
         classification_of_patients <- spectral_classification(spectra_path = filepath_import, filepath_R = filepath_R, classification_mode = classification_mode, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = peak_deisotoping, preprocessing_parameters = preprocessing_parameters, tof_mode = tof_mode, allow_parallelization = allow_parallelization, decision_method_ensemble = decision_method_ensemble, vote_weights_ensemble = vote_weights_ensemble, pixel_grouping = pixel_grouping, moving_window_size = moving_window_size, number_of_hca_nodes = number_of_hca_nodes, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 50, iterations_with_no_change_GA = 5, seed = 12345, plot_figures = TRUE, plot_graphs = TRUE, plot_legends = plot_legends)
         # Escape the function
         .GlobalEnv$classification_of_patients <- classification_of_patients
-        setTkProgressBar(program_progress_bar, value = 0.75, title = NULL, label = "75 %")
+        setTkProgressBar(program_progress_bar, value = 0.75, title = "Saving files...", label = "75 %")
         if (files_dumped == FALSE) {
             # Dump the files
             ms_pixel_typer_data_dumper_function()
@@ -9011,7 +9012,7 @@ run_ms_pixel_typer_function <- function() {
         setTkProgressBar(program_progress_bar, value = 1.00, title = NULL, label = "100 %")
         close(program_progress_bar)
         ### Messagebox
-        tkmessageBox(title = "Done!", message = "The classification has been performed!", icon = "info")
+        tkmessageBox(title = "Done!", message = "The classification has been performed and the files have been dumped!", icon = "info")
     } else if (is.null(filepath_import) || RData_file_integrity == FALSE) {
         classification_of_patients <- NULL
         # Escape the function
@@ -9516,4 +9517,5 @@ tkgrid(check_for_updates_value_label, row = 1, column = 4, padx = c(10, 10), pad
 
 
 ################################################################################
+
 
