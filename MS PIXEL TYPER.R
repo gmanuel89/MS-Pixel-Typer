@@ -183,7 +183,7 @@ functions_mass_spectrometry <- function() {
     ########################################################### ENSEMBLE VOTE MATRIX
     # The function takes as input the result matrix of an ensemble classification: each row is an observation/spectrum (patient or pixel) and each column is the predicted class of that observation by one model.
     # The function returns a single column matrix with the ensemble classification results computed according to the input parameters (such as vote weights and method).
-    ensemble_vote_classification <<- function(classification_matrix, class_list = NULL, decision_method = "majority", vote_weights = "equal", classification_probabilities_list = NULL, model_performance_parameter_list = NULL, type_of_validation_for_performance_estimation = "cv") {
+    ensemble_vote_classification <<- function(classification_matrix, class_list = NULL, decision_method = "majority", vote_weights = "equal", classification_probabilities_list = NULL, performance_parameter_list = NULL, type_of_validation_for_performance_estimation = "cv") {
         ### Class list
         # Retrieve the class list according to the present classes (if not specified)
         if (is.null(class_list) || length(class_list) == 0) {
@@ -269,7 +269,7 @@ functions_mass_spectrometry <- function() {
                 }
             }
             colnames(classification_ensemble_matrix) <- "Ensemble classification"
-        } else if (decision_method == "majority" && vote_weights == "bayesian probabilities" && (!is.null(model_performance_parameter_list) && is.list(model_performance_parameter_list) && length(model_performance_parameter_list) > 0)) {
+        } else if (decision_method == "majority" && vote_weights == "bayesian probabilities" && (!is.null(performance_parameter_list) && is.list(performance_parameter_list) && length(performance_parameter_list) > 0)) {
             ##### Majority vote: bayesian probabilities
             ## Initialize the final classification ensemble matrix
             classification_ensemble_matrix <- NULL
@@ -3868,7 +3868,7 @@ functions_mass_spectrometry <- function() {
             if ("pixel" %in% classification_mode) {
                 if (length(list_of_models) > 2 && !is.null(final_result_matrix_msi_patient) && classes_are_the_same_for_each_model == TRUE && outcomes_are_the_same_for_each_model == TRUE) {
                     ### Classification matrix
-                    classification_ensemble_matrix_msi <- ensemble_vote_classification(classification_matrix = final_result_matrix_msi_patient, class_list = model_list[[1]]$class_list, decision_method = decision_method_ensemble, vote_weights = vote_weights_ensemble, classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list)
+                    classification_ensemble_matrix_msi <- ensemble_vote_classification(classification_matrix = final_result_matrix_msi_patient, class_list = model_list[[1]]$class_list, decision_method = decision_method_ensemble, vote_weights = vote_weights_ensemble, classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list, type_of_validation_for_performance_estimation = "cv")
                     # Store the ensemble classification matrix in the final output list
                     classification_ensemble_matrix_msi_all[[sample_name]] <- classification_ensemble_matrix_msi
                     ### Molecular image of the classification
@@ -3914,7 +3914,7 @@ functions_mass_spectrometry <- function() {
             if ("profile" %in% classification_mode) {
                 if (length(list_of_models) > 2 && !is.null(final_result_matrix_profile_patient) && classes_are_the_same_for_each_model == TRUE && outcomes_are_the_same_for_each_model == TRUE) {
                     ########## Ensemble results
-                    classification_ensemble_matrix_profile <- ensemble_vote_classification(classification_matrix = final_result_matrix_profile_patient, class_list = model_list[[1]]$class_list, decision_method = decision_method_ensemble, vote_weights = vote_weights_ensemble, classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list)
+                    classification_ensemble_matrix_profile <- ensemble_vote_classification(classification_matrix = final_result_matrix_profile_patient, class_list = model_list[[1]]$class_list, decision_method = decision_method_ensemble, vote_weights = vote_weights_ensemble, classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list, type_of_validation_for_performance_estimation = "cv")
                     # Store the ensemble classification matrix in the final output list
                     if (is.null(classification_ensemble_matrix_profile_all)) {
                         classification_ensemble_matrix_profile_all <- classification_ensemble_matrix_profile
@@ -4633,12 +4633,9 @@ functions_mass_spectrometry <- function() {
             parameter_combination <- list()
             # Define the parameters to be tested
             preprocessing_values <- list(NULL, c("center", "scale"))
-            feature_reranking_values <- list(TRUE, FALSE)
             # Generate the combination list (each list element is a combination of values)
             for (p in 1:length(preprocessing_values)) {
-                for (f in 1:length(feature_reranking_values)) {
-                    parameter_combination[[(length(parameter_combination) + 1)]] <- list(preprocessing = preprocessing_values[[p]], feature_reranking = feature_reranking_values[[f]])
-                }
+                parameter_combination[[(length(parameter_combination) + 1)]] <- list(preprocessing = preprocessing_values[[p]])
             }
             ### Test every combination...
             # Store the best performance value and the best model
@@ -4646,7 +4643,7 @@ functions_mass_spectrometry <- function() {
             best_rfe_model <- NULL
             # Run every combination, storing the result if good
             for (comb in 1:length(parameter_combination)) {
-                single_rfe_model <- embedded_rfe(training_set, features_to_select = features_to_select, selection_method = selection_method, model_tuning = model_tuning, model_tune_grid = model_tune_grid, selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = parameter_combination[[comb]]$preprocessing, allow_parallelization = allow_parallelization, feature_reranking = parameter_combination[[comb]]$feature_reranking, test_set = test_set, positive_class_cv = positive_class_cv)
+                single_rfe_model <- embedded_rfe(training_set, features_to_select = features_to_select, selection_method = selection_method, model_tuning = model_tuning, model_tune_grid = model_tune_grid, selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = parameter_combination[[comb]]$preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, test_set = test_set, positive_class_cv = positive_class_cv)
                 ### Check (and store) the performance values and the model
                 if (is.null(best_model_performance) || single_rfe_model$fs_model_performance > best_model_performance) {
                     best_model_performance <- single_rfe_model$fs_model_performance
@@ -4899,13 +4896,17 @@ functions_mass_spectrometry <- function() {
             training_set_common_features <- NULL
         }
         # Build the matrix with the common features
-        for (cf in 1:length(common_features_list)) {
-            if (startsWith(common_features_list[cf], "X")) {
-                common_features_list[cf] <- as.numeric(unlist(strsplit(common_features_list[cf], "X"))[2])
+        if (length(common_features_list) > 0) {
+            for (cf in 1:length(common_features_list)) {
+                if (startsWith(common_features_list[cf], "X")) {
+                    common_features_list[cf] <- as.numeric(unlist(strsplit(common_features_list[cf], "X"))[2])
+                }
             }
+            common_features_matrix <- as.matrix(cbind(common_features_list))
+            colnames(common_features_matrix) <- "Common model features"
+        } else {
+            common_features_matrix <- NULL
         }
-        common_features_matrix <- as.matrix(cbind(common_features_list))
-        colnames(common_features_matrix) <- "Common model features"
         ### Build the matrix with the model performances
         model_performance_matrix <- extract_performance_matrix_from_model_list(filepath_R = model_list)
         ### Models performance parameter list
@@ -7200,8 +7201,8 @@ functions_mass_spectrometry <- function() {
             # Extract the features from the model list
             feature_vector <- model_list[[md]]$features_model
             # Remove the X from the features
-            if (unlist(strsplit(as.character(feature_vector[1]),""))[1] == "X") {
-                for (f in 1:length(feature_vector)) {
+            for (f in 1:length(feature_vector)) {
+                if (startsWith(feature_vector[f], "X")) {
                     name_splitted <- unlist(strsplit(feature_vector[f],""))
                     feature_def <- name_splitted [2]
                     for (i in 3:length(name_splitted)) {
@@ -7210,20 +7211,26 @@ functions_mass_spectrometry <- function() {
                     feature_vector[f] <- feature_def
                 }
             }
+            # Fix the vector length if not long as the maximum length
+            if (length(feature_vector) < highest_number_of_features) {
+                for (d in 1:(highest_number_of_features - length(feature_vector))) {
+                    feature_vector <- append(feature_vector, "")
+                }
+            }
             # Fill the matrix
-            model_features_matrix[, md] <- cbind(as.numeric(feature_vector))
+            model_features_matrix[, md] <- cbind(feature_vector)
             # Fill the dataframe
-            feature_df <- data.frame(features = cbind(as.numeric(feature_vector)), rank = cbind(seq(1, length(feature_vector), by = 1)))
+            feature_df <- data.frame(features = cbind(feature_vector), rank = cbind(seq(1, length(feature_vector), by = 1)))
             if (is.null(feature_dataframe)) {
-                feature_dataframe <- feature_df
+                feature_dataframe <- feature_df[feature_df$feature_vector != "", ]
             } else {
-                feature_dataframe <- rbind(feature_dataframe, feature_df)
+                feature_dataframe <- rbind(feature_dataframe, feature_df[feature_df$feature_vector != "", ])
             }
         }
         # Sort the feature dataframe according to the rank
         feature_dataframe <- feature_dataframe[order(feature_dataframe$rank), ]
         # Return to a vector and extract the unique values
-        model_features <- unique(as.numeric(feature_dataframe$features))
+        model_features <- unique(as.character(feature_dataframe[,1]))
         # Output a certain number of features
         if (features_to_return > 0 && features_to_return < length(model_features)) {
             model_features <- model_features[1:features_to_return]
@@ -7277,14 +7284,16 @@ functions_mass_spectrometry <- function() {
         ### Find the dunplicated values: the duplicated values are the common values
         common_features_vector <- unique(feature_vector[duplicated(feature_vector) == TRUE])
         ### Remove the X from the features
-        if (unlist(strsplit(as.character(common_features_vector[1]),""))[1] == "X") {
+        if (length(common_features_vector) > 0) {
             for (f in 1:length(common_features_vector)) {
-                name_splitted <- unlist(strsplit(common_features_vector[f],""))
-                feature_def <- name_splitted[2]
-                for (i in 3:length(name_splitted)) {
-                    feature_def <- paste0(feature_def, name_splitted[i])
+                if (startsWith(common_features_vector[f], "X")) {
+                    name_splitted <- unlist(strsplit(common_features_vector[f],""))
+                    feature_def <- name_splitted[2]
+                    for (i in 3:length(name_splitted)) {
+                        feature_def <- paste0(feature_def, name_splitted[i])
+                    }
+                    common_features_vector[f] <- feature_def
                 }
-                common_features_vector[f] <- feature_def
             }
         }
         ### Output a certain number of features
@@ -7911,6 +7920,8 @@ functions_mass_spectrometry <- function() {
 
 
 
+
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -7962,7 +7973,7 @@ ms_pixel_typer <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.09.0"
+    R_script_version <- "2017.06.09.1"
     ### GitHub URL where the R file is
     github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Pixel-Typer/master/MS%20PIXEL%20TYPER.R"
     ### GitHub URL of the program's WIKI
@@ -9304,4 +9315,3 @@ ms_pixel_typer <- function() {
 
 ### Run the function
 ms_pixel_typer()
-
