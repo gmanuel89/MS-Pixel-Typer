@@ -1,12 +1,12 @@
+# Clear the console
+cat("\014")
+# Empty the workspace
+rm(list = ls())
+
 functions_mass_spectrometry <- function() {
     
-    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.07 ################
-    # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry function they go in the global environment, like as if the script is directly sourced from the file.
-    
-    # Clear the console
-    #cat("\014")
-    # Empty the workspace
-    #rm(list = ls())
+    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.09 ################
+    # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
     
     
     ########################################################################## MISC
@@ -183,7 +183,7 @@ functions_mass_spectrometry <- function() {
     ########################################################### ENSEMBLE VOTE MATRIX
     # The function takes as input the result matrix of an ensemble classification: each row is an observation/spectrum (patient or pixel) and each column is the predicted class of that observation by one model.
     # The function returns a single column matrix with the ensemble classification results computed according to the input parameters (such as vote weights and method).
-    ensemble_vote_classification <<- function(classification_matrix, class_list = NULL, decision_method = "majority", vote_weights = "equal", classification_probabilities_list = NULL, bayesian_probabilities_list = NULL) {
+    ensemble_vote_classification <<- function(classification_matrix, class_list = NULL, decision_method = "majority", vote_weights = "equal", classification_probabilities_list = NULL, model_performance_parameter_list = NULL, type_of_validation_for_performance_estimation = "cv") {
         ### Class list
         # Retrieve the class list according to the present classes (if not specified)
         if (is.null(class_list) || length(class_list) == 0) {
@@ -269,7 +269,7 @@ functions_mass_spectrometry <- function() {
                 }
             }
             colnames(classification_ensemble_matrix) <- "Ensemble classification"
-        } else if (decision_method == "majority" && vote_weights == "bayesian probabilities" && (!is.null(bayesian_probabilities_list) && is.list(bayesian_probabilities_list) && length(bayesian_probabilities_list) > 0)) {
+        } else if (decision_method == "majority" && vote_weights == "bayesian probabilities" && (!is.null(model_performance_parameter_list) && is.list(model_performance_parameter_list) && length(model_performance_parameter_list) > 0)) {
             ##### Majority vote: bayesian probabilities
             ## Initialize the final classification ensemble matrix
             classification_ensemble_matrix <- NULL
@@ -285,17 +285,23 @@ functions_mass_spectrometry <- function() {
                 predicted_classes_models <- as.matrix(classification_matrix[s,])
                 # Initialize the class probability list (each element is referred to a class and it is a vector of probabilities for each model for that spectrum): each element of the list will contain the probabilities of the spectrum for that class for all the models. E.g. element named 0 will contain the P(0).
                 class_probs_list <- list()
+                # Determine the type of validation (cross or external) to use
+                if (type_of_validation_for_performance_estimation == "cv" || type_of_validation_for_performance_estimation == "cross validation" || type_of_validation_for_performance_estimation == "CV") {
+                    model_performance_parameter_list <- performance_parameter_list$cv
+                } else if (type_of_validation_for_performance_estimation == "ev" || type_of_validation_for_performance_estimation == "external validation" || type_of_validation_for_performance_estimation == "EV") {
+                    model_performance_parameter_list <- performance_parameter_list$external
+                }
                 # P(d|h) = probability that the class of the real data (d) is a value given the hypothesis (h). E.g. P(d=1|h=1) is the probability that the real data is 1 given that it is really 1, so it is the probability that the class of the patient is really 1 (h=1) when the model says that it is 1 (d=1).
                 # For class 0 --> P(0) = P(d=0|h=0) or P(d=1|h=0) according to if the model says that the patient is 1 (d=1) or 0 (d=0). The hypothesis is always h=0 because we are calculating the probabilities of the data to be of class 0.
                 # For class 1 --> P(1) = P(d=1|h=1) or P(d=0|h=1) according to if the model says that the patient is 1 (d=1) or 0 (d=0). The hypothesis is always h=1 because we are calculating the probabilities of the data to be of class 1.
-                for (m in 1:length(bayesian_probabilities_list)) {
+                for (m in 1:length(model_performance_parameter_list)) {
                     # For each class...
                     for (cl in 1:length(class_list)) {
                         # If the predicted class (by the model) corresponds to the class in evaluation, the probability associated is the likelihood P(d=1|h=1), otherwise it is 1-likelihood P(d=0|h=1)
                         if (predicted_classes_models[m] == class_list[cl]) {
-                            bayesian_prob <- bayesian_probabilities_list[[m]][[(predicted_classes_models[m])]][["likelihood"]]
+                            bayesian_prob <- model_performance_parameter_list[[m]][[(predicted_classes_models[m])]][["sensitivity"]]
                         } else {
-                            bayesian_prob <- 1 - bayesian_probabilities_list[[m]][[(predicted_classes_models[m])]][["likelihood"]]
+                            bayesian_prob <- 1 - model_performance_parameter_list[[m]][[(predicted_classes_models[m])]][["sensitivity"]]
                         }
                         # Append the probability to the vector of probabilities 
                         if (is.null(class_probs_list[[(class_list[cl])]])) {
@@ -307,7 +313,7 @@ functions_mass_spectrometry <- function() {
                 }
                 # Add the prior probability
                 for (l in 1:length(class_probs_list)) {
-                    class_probs_list[[l]] <- append(class_probs_list[[l]], bayesian_probabilities_list[[1]][[(names(class_probs_list)[l])]][["prior"]])
+                    class_probs_list[[l]] <- append(class_probs_list[[l]], model_performance_parameter_list[[1]][[(names(class_probs_list)[l])]][["class proportion"]])
                 }
                 # Calculate the product of probabilities
                 final_class_probs <- list()
@@ -2937,98 +2943,6 @@ functions_mass_spectrometry <- function() {
     
     
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     ################################################################ CLASSIFICATION
     
     ############################## SINGLE MODEL CLASSIFICATION (MULTICORE, ENSEMBLE)
@@ -3784,7 +3698,7 @@ functions_mass_spectrometry <- function() {
     # The function outputs a list containing: a matrix with the classification (pixel-by-pixel and/or profile), MS images with the pixel-by-pixel classification, a matrix with the ensemble classification (pixel-by-pixel and/or profile), MS images with the pixel-by-pixel ensemble classification and the plot of the average spectrum with red bars to indicate the signals used for classification.
     # Parallel computation implemented.
     # It outputs NULL values if the classification cannot be performed due to incompatibilities between the model features and the spectral features.
-    spectral_classification <<- function(spectra_path, filepath_R, classification_mode = c("pixel", "profile"), peak_picking_algorithm = "SuperSmoother", deisotope_peaklist = FALSE, preprocessing_parameters = list(mass_range = c(4000,15000), transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL), tof_mode = "linear", allow_parallelization = FALSE, decision_method_ensemble = "majority", vote_weights_ensemble = c("equal", "class assignment probabilities"), pixel_grouping = c("single", "moving window average", "graph", "hca"), moving_window_size = 5, number_of_hca_nodes = 10, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 10, iterations_with_no_change_GA = 5, seed = 12345, classification_mode_graph = c("average spectra", "single spectra clique"), features_to_use_for_graph = c("all", "model"), plot_figures = TRUE, plot_graphs = TRUE, plot_legends = c("sample name", "legend", "plot name"), progress_bar = NULL) {
+    spectral_classification <<- function(spectra_path, filepath_R, model_list = NULL, model_performance_parameter_list = NULL, classification_mode = c("pixel", "profile"), peak_picking_algorithm = "SuperSmoother", deisotope_peaklist = FALSE, preprocessing_parameters = list(mass_range = c(4000,15000), transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL), tof_mode = "linear", allow_parallelization = FALSE, decision_method_ensemble = "majority", vote_weights_ensemble = c("equal", "class assignment probabilities"), pixel_grouping = c("single", "moving window average", "graph", "hca"), moving_window_size = 5, number_of_hca_nodes = 10, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 10, iterations_with_no_change_GA = 5, seed = 12345, classification_mode_graph = c("average spectra", "single spectra clique"), features_to_use_for_graph = c("all", "model"), plot_figures = TRUE, plot_graphs = TRUE, plot_legends = c("sample name", "legend", "plot name"), progress_bar = NULL) {
         ### Install and load the required packages
         install_and_load_required_packages(c("MALDIquant", "MALDIquantForeign", "XML", "stats", "parallel", "kernlab", "MASS", "klaR", "pls", "randomForest", "lda", "caret", "nnet"))
         ### Defaults
@@ -3863,14 +3777,16 @@ functions_mass_spectrometry <- function() {
                 }
             }
             ### LOAD THE R WORKSPACE WITH THE MODEL LIST
-            # Create a temporary environment
-            temporary_environment <- new.env()
-            # Load the workspace
-            load(filepath_R, envir = temporary_environment)
-            # Get the models (R objects) from the workspace
-            model_list <- get("model_list", pos = temporary_environment)
-            # Load the bayesian probabilities for vote weights
-            model_bayesian_probabilities <- get("model_bayesian_probabilities", pos = temporary_environment)
+            if (is.null(model_list) && is.null(model_performance_parameter_list) && !is.null(filepath_R) && is.character(filepath_R)) {
+                # Create a temporary environment
+                temporary_environment <- new.env()
+                # Load the workspace
+                load(filepath_R, envir = temporary_environment)
+                # Get the models (R objects) from the workspace
+                model_list <- get("model_list", pos = temporary_environment)
+                # Load the bayesian probabilities for vote weights
+                model_performance_parameter_list <- get("model_performance_parameter_list", pos = temporary_environment)
+            }
             # Get the list of models
             list_of_models <- names(model_list)
             # For each model...
@@ -3952,7 +3868,7 @@ functions_mass_spectrometry <- function() {
             if ("pixel" %in% classification_mode) {
                 if (length(list_of_models) > 2 && !is.null(final_result_matrix_msi_patient) && classes_are_the_same_for_each_model == TRUE && outcomes_are_the_same_for_each_model == TRUE) {
                     ### Classification matrix
-                    classification_ensemble_matrix_msi <- ensemble_vote_classification(classification_matrix = final_result_matrix_msi_patient, class_list = model_list[[1]]$class_list, decision_method = decision_method_ensemble, vote_weights = vote_weights_ensemble, classification_probabilities_list = predicted_classes_probs_list, bayesian_probabilities_list = model_bayesian_probabilities)
+                    classification_ensemble_matrix_msi <- ensemble_vote_classification(classification_matrix = final_result_matrix_msi_patient, class_list = model_list[[1]]$class_list, decision_method = decision_method_ensemble, vote_weights = vote_weights_ensemble, classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list)
                     # Store the ensemble classification matrix in the final output list
                     classification_ensemble_matrix_msi_all[[sample_name]] <- classification_ensemble_matrix_msi
                     ### Molecular image of the classification
@@ -3998,7 +3914,7 @@ functions_mass_spectrometry <- function() {
             if ("profile" %in% classification_mode) {
                 if (length(list_of_models) > 2 && !is.null(final_result_matrix_profile_patient) && classes_are_the_same_for_each_model == TRUE && outcomes_are_the_same_for_each_model == TRUE) {
                     ########## Ensemble results
-                    classification_ensemble_matrix_profile <- ensemble_vote_classification(classification_matrix = final_result_matrix_profile_patient, class_list = model_list[[1]]$class_list, decision_method = decision_method_ensemble, vote_weights = vote_weights_ensemble, classification_probabilities_list = predicted_classes_probs_list)
+                    classification_ensemble_matrix_profile <- ensemble_vote_classification(classification_matrix = final_result_matrix_profile_patient, class_list = model_list[[1]]$class_list, decision_method = decision_method_ensemble, vote_weights = vote_weights_ensemble, classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list)
                     # Store the ensemble classification matrix in the final output list
                     if (is.null(classification_ensemble_matrix_profile_all)) {
                         classification_ensemble_matrix_profile_all <- classification_ensemble_matrix_profile
@@ -4936,27 +4852,6 @@ functions_mass_spectrometry <- function() {
         nnet_model_external_performance_parameter_list <- nnet_model_rfe$model_external_performance_parameter_list
         cat("\nNeural Network\n")
         cat(nnet_model_performance)
-        # Progress bar
-        if (!is.null(progress_bar) && progress_bar == "tcltk") {
-            setTkProgressBar(fs_progress_bar, value = 0.80, title = NULL, label = "Linear Discriminant Analysis")
-        } else if (!is.null(progress_bar) && progress_bar == "txt") {
-            setTxtProgressBar(fs_progress_bar, value = 0.80, title = NULL, label = "Linear Discriminant Analysis")
-        }
-        # Linear Discriminant Analysis
-        LDA_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "lda2", model_tuning = model_tuning, model_tune_grid = list(dimen = 1:5), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters)
-        LDA_model <- LDA_model_rfe$feature_selection_model
-        LDA_model_features <- LDA_model_rfe$predictors_feature_selection
-        LDA_model_class_list <- LDA_model_rfe$class_list
-        LDA_model_ID <- "lda"
-        LDA_model_performance <- LDA_model_rfe$fs_model_performance
-        LDA_model_cross_validation_confusion_matrix <- LDA_model_rfe$cross_validation_confusion_matrix
-        LDA_model_cross_validation_confusion_matrix_df <- LDA_model_rfe$cross_validation_confusion_matrix_df
-        LDA_model_cv_performance_parameter_list <- LDA_model_rfe$model_cv_performance_parameter_list
-        LDA_model_external_validation_confusion_matrix <- LDA_model_rfe$external_validation_confusion_matrix
-        LDA_model_external_validation_confusion_matrix_df <- LDA_model_rfe$external_validation_confusion_matrix_df
-        LDA_model_external_performance_parameter_list <- LDA_model_rfe$model_external_performance_parameter_list
-        cat("\nLinear Discriminant Analysis\n")
-        cat(LDA_model_performance)
         ##### Elements for the RData
         # Progress bar
         if (!is.null(progress_bar) && progress_bar == "tcltk") {
@@ -4981,8 +4876,6 @@ functions_mass_spectrometry <- function() {
         KNN_model_list <- list(model = knn_model, class_list = knn_model_class_list, outcome_list = outcome_list, features_model = knn_model_features, model_ID = knn_model_ID, model_performance = knn_model_performance, cross_validation_confusion_matrix = knn_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = knn_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = knn_model_cv_performance_parameter_list, external_validation_confusion_matrix = knn_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = knn_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = knn_model_external_performance_parameter_list)
         # Neural Network
         NNET_model_list <- list(model = nnet_model, class_list = nnet_model_class_list, outcome_list = outcome_list, features_model = nnet_model_features, model_ID = nnet_model_ID, model_performance = nnet_model_performance, cross_validation_confusion_matrix = nnet_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = nnet_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = nnet_model_cv_performance_parameter_list, external_validation_confusion_matrix = nnet_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = nnet_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = nnet_model_external_performance_parameter_list)
-        # Linear Discriminant Analysis
-        LDA_model_list <- list(model = LDA_model, class_list = LDA_model_class_list, outcome_list = outcome_list, features_model = LDA_model_features, model_ID = LDA_model_ID, model_performance = LDA_model_performance, cross_validation_confusion_matrix = LDA_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = LDA_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = LDA_model_cv_performance_parameter_list, external_validation_confusion_matrix = LDA_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = LDA_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = LDA_model_external_performance_parameter_list)
         # Progress bar
         if (!is.null(progress_bar) && progress_bar == "tcltk") {
             setTkProgressBar(fs_progress_bar, value = 0.95, title = NULL, label = NULL)
@@ -4990,7 +4883,7 @@ functions_mass_spectrometry <- function() {
             setTxtProgressBar(fs_progress_bar, value = 0.95, title = NULL, label = NULL)
         }
         ### Build the final model list (to be exported) (each element has the proper name of the model)
-        model_list <- list("SVM Radial Basis" = RSVM_model_list, "SVM Polynomial" = PSVM_model_list, "SVM Linear" = LSVM_model_list, "Partial Least Squares" = PLS_model_list, "Random Forest" = RF_model_list, "Naive Bayes Classifier" = NBC_model_list, "k-Nearest Neighbor" = KNN_model_list, "Neural Network" = NNET_model_list, "Linear Discriminant Analysis" = LDA_model_list)
+        model_list <- list("SVM Radial Basis" = RSVM_model_list, "SVM Polynomial" = PSVM_model_list, "SVM Linear" = LSVM_model_list, "Partial Least Squares" = PLS_model_list, "Random Forest" = RF_model_list, "Naive Bayes Classifier" = NBC_model_list, "k-Nearest Neighbor" = KNN_model_list, "Neural Network" = NNET_model_list)
         ### Build the final feature vector
         feature_list <- extract_feature_list_from_model_list(filepath_R = model_list, features_to_return = features_to_select)
         ### Yield the peaklist matrix with only the common features
@@ -5015,14 +4908,18 @@ functions_mass_spectrometry <- function() {
         colnames(common_features_matrix) <- "Common model features"
         ### Build the matrix with the model performances
         model_performance_matrix <- extract_performance_matrix_from_model_list(filepath_R = model_list)
-        ### Extract the bayesian probabilities from the model list
-        model_bayesian_probabilities <- extract_bayesian_probabilities_from_model_list(filepath_R = model_list)
+        ### Models performance parameter list
+        model_performance_parameter_list <- list("cv" = list(), "external" = list())
+        for (m in 1:length(model_list)) {
+            model_performance_parameter_list[["cv"]][[names(model_list)[m]]] <- model_list[[m]]$model_cv_performance_parameter_list
+            model_performance_parameter_list[["external"]][[names(model_list)[m]]] <- model_list[[m]]$model_external_performance_parameter_list
+        }
         # Progress bar
         if (!is.null(progress_bar)) {
             close(fs_progress_bar)
         }
         ##### Return
-        return(list(model_list = model_list, feature_list = feature_list, common_features_list = common_features_list, training_set_common_features = training_set_common_features, common_features_matrix = common_features_matrix, model_performance_matrix = model_performance_matrix, model_bayesian_probabilities = model_bayesian_probabilities))
+        return(list(model_list = model_list, feature_list = feature_list, common_features_list = common_features_list, training_set_common_features = training_set_common_features, common_features_matrix = common_features_matrix, model_performance_matrix = model_performance_matrix, model_performance_parameter_list = model_performance_parameter_list))
     }
     
     
@@ -5066,6 +4963,7 @@ functions_mass_spectrometry <- function() {
                 }
                 # Determine the performance parameters (create a vector with all of them, named)
                 performance_parameter_vector <- vector()
+                performance_parameter_vector[["class proportion"]] <- nrow(training_set[training_set[, discriminant_attribute] == positive_class_cv, ]) / nrow(training_set)
                 performance_parameter_vector[["recall"]] <- recall(confusion_matrix$table, positive = positive_class_cv)
                 performance_parameter_vector[["precision"]] <- precision(confusion_matrix$table, positive = positive_class_cv)
                 performance_parameter_vector[["sensitivity"]] <- sensitivity(confusion_matrix$table, positive = positive_class_cv)
@@ -5074,7 +4972,7 @@ functions_mass_spectrometry <- function() {
                 performance_parameter_vector[["NPV"]] <- negPredValue(confusion_matrix$table, positive = positive_class_cv)
                 performance_parameter_vector[["balanced accuracy"]] <- (performance_parameter_vector[["sensitivity"]] + performance_parameter_vector[["specificity"]]) / 2
                 # Store the vector in the list, named according to the positive class of the CV
-                performance_parameter_list[[positive_class_cv]][["parameters"]] <- performance_parameter_vector
+                performance_parameter_list[[positive_class_cv]] <- performance_parameter_vector
             }
             ### Return
             return(list(performance_parameter_list = performance_parameter_list, confusion_matrix = confusion_matrix, confusion_matrix_df = confusion_matrix_df))
@@ -5104,6 +5002,7 @@ functions_mass_spectrometry <- function() {
                 }
                 # Determine the performance parameters (create a vector with all of them, named)
                 performance_parameter_vector <- vector()
+                performance_parameter_vector[["class proportion"]] <- nrow(training_set[training_set[, discriminant_attribute] == positive_class_cv, ]) / nrow(training_set)
                 performance_parameter_vector[["recall"]] <- recall(confusion_matrix$table, positive = positive_class_cv)
                 performance_parameter_vector[["precision"]] <- precision(confusion_matrix$table, positive = positive_class_cv)
                 performance_parameter_vector[["sensitivity"]] <- sensitivity(confusion_matrix$table, positive = positive_class_cv)
@@ -5112,7 +5011,7 @@ functions_mass_spectrometry <- function() {
                 performance_parameter_vector[["NPV"]] <- negPredValue(confusion_matrix$table, positive = positive_class_cv)
                 performance_parameter_vector[["balanced accuracy"]] <- (performance_parameter_vector[["sensitivity"]] + performance_parameter_vector[["specificity"]]) / 2
                 # Store the vector in the list, named according to the positive class of the CV
-                performance_parameter_list[[positive_class_cv]][["parameters"]] <- performance_parameter_vector
+                performance_parameter_list[[positive_class_cv]] <- performance_parameter_vector
             }
             ### Return
             return(list(performance_parameter_list = performance_parameter_list, confusion_matrix = confusion_matrix, confusion_matrix_df = confusion_matrix_df))
@@ -7462,142 +7361,6 @@ functions_mass_spectrometry <- function() {
     
     
     
-    ################################# EXTRACT BAYESIAN PROBABILITIES FROM MODEL LIST
-    # The function takes an RData workspace as input, in which there are all the models. The model_list is a list in which each element corresponds to a list containing the model object, the feature list, the class list and the outcome list and its tuning/cross-validation performance. If the input is the model list, the same operations are performed (only the import of the model_list from the RData is skipped).
-    # The function returns a list in which each element corresponds to a model's (named according to the model_list names) bayesian probabilities (prior and likelihood).
-    extract_bayesian_probabilities_from_model_list <<- function(filepath_R) {
-        if (!is.list(filepath_R)) {
-            ### LOAD THE R WORKSPACE WITH THE MODEL LIST
-            # Create a temporary environment
-            temporary_environment <- new.env()
-            # Load the workspace
-            load(filepath_R, envir = temporary_environment)
-            # Get the models (R objects) from the workspace
-            model_list <- get("model_list", pos = temporary_environment)
-        } else if (is.list(filepath_R)) {
-            model_list <- filepath_R
-        }
-        # Get the list of models
-        list_of_models <- names(model_list)
-        ### Initialize the output list
-        bayesian_probabilities_list <- list()
-        ### Extract the performance for each model
-        for (md in 1:length(list_of_models)) {
-            # Initialize the single model list
-            single_model_bayesian_probabilities <- list()
-            # Retrieve the model object
-            single_model <- model_list[[md]]$model
-            # Retrieve the class list
-            class_list <- model_list[[md]]$class_list
-            # Retrieve the training data
-            training_data <- single_model$trainingData
-            # For each class...
-            for (cls in 1:length(class_list)) {
-                # Estimate the prior (proportion of elements with a certain class over the total)
-                single_model_bayesian_probabilities[[class_list[cls]]][["prior"]] <- nrow(training_data[training_data$.outcome == class_list[cls], ]) / nrow(training_data)
-                # Estimate the likelihood (positive predictive value for that class)
-                single_model_bayesian_probabilities[[class_list[cls]]][["likelihood"]] <- posPredValue(confusionMatrix(single_model)$table, positive = class_list[cls])
-            }
-            # Store it in the final list
-            bayesian_probabilities_list[[list_of_models[md]]] <- single_model_bayesian_probabilities
-        }
-        ### Return
-        return(bayesian_probabilities_list)
-    }
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     
     
@@ -8147,6 +7910,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8180,7 +7944,11 @@ functions_mass_spectrometry <- function() {
 
 
 ms_pixel_typer <- function() {
-#################### MS PIXEL TYPER ####################
+    
+    #################### MS PIXEL TYPER ####################
+    # All the functions in the ms_pixel_typer() function are run within the ms_pixel_typer() function's environment, but they are called from the global environment since they were previously assigned with the <<- in the functions_mass_spectrometry() function.
+    # Each value that must go to the global environment is assigned with the <<- so that it can be called from any function of the ms_pixel_typer() function.
+    # In the debugging phase, run the whole code block within the {}, like as if the script was directly sourced from the file.
     
     
     
@@ -8193,1341 +7961,1341 @@ ms_pixel_typer <- function() {
     
     
     
-### Program version (Specified by the program writer!!!!)
-R_script_version <- "2017.06.07.0"
-### GitHub URL where the R file is
-github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Pixel-Typer/master/MS%20PIXEL%20TYPER.R"
-### GitHub URL of the program's WIKI
-github_wiki_url <- "https://github.com/gmanuel89/MS-Pixel-Typer/wiki"
-### Name of the file when downloaded
-script_file_name <- "MS PIXEL TYPER"
-# Change log
-change_log <- "1. New vote weights!!\n2. Fixed GUI"
-
-
-
-
-
-
-############## INSTALL AND LOAD THE REQUIRED PACKAGES
-install_and_load_required_packages(c("tcltk", "parallel"), repository = "http://cran.mirror.garr.it/mirrors/CRAN/", update_packages = TRUE, print_messages = TRUE)
-
-
-
-
-
-
-###################################### Initialize the variables (default values)
-filepath_import <- NULL
-tof_mode <- "linear"
-output_folder <- getwd()
-spectra_format <- "imzml"
-peaks_filtering <- TRUE
-low_intensity_peak_removal_threshold_method <- "element-wise"
-peak_picking_algorithm <- "SuperSmoother"
-file_type_export_matrix <- "csv"
-file_type_export_images <- "png"
-spectra <- NULL
-peaks <- NULL
-allow_parallelization <- FALSE
-transform_data_algorithm <- NULL
-smoothing_algorithm <- "SavitzkyGolay"
-smoothing_strength <- "medium"
-baseline_subtraction_algorithm <- "SNIP"
-baseline_subtraction_algorithm_parameter <- 200
-normalization_algorithm <- "TIC"
-normalization_mass_range <- NULL
-preprocess_spectra_in_packages_of <- 0
-mass_range <- c(3000, 15000)
-spectral_alignment_algorithm <- NULL
-spectral_alignment_reference <- NULL
-peak_deisotoping <- FALSE
-peak_enveloping <- FALSE
-RData_file_integrity <- FALSE
-classification_mode <- "pixel"
-pixel_grouping <- "single"
-decision_method_ensemble <- "majority"
-vote_weights_ensemble <- "equal"
-number_of_hca_nodes <- 4
-moving_window_size <- 5
-files_dumped <- FALSE
-preprocessing_parameters <- list(mass_range = mass_range, transformation_algorithm = transform_data_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_strength = smoothing_strength, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range, preprocess_spectra_in_packages_of = preprocess_spectra_in_packages_of, spectral_alignment_algorithm = spectral_alignment_algorithm, spectral_alignment_reference = spectral_alignment_reference)
-
-
-
-
-################## Values of the variables (for displaying and dumping purposes)
-tof_mode_value <- "Linear"
-filepath_import_value <- ""
-output_folder_value <- output_folder
-spectra_format_value <- "imzML"
-peaks_filtering_value <- "YES"
-peak_picking_algorithm_value <- "Super Smoother"
-low_intensity_peak_removal_threshold_method_value <- "element-wise"
-allow_parallelization_value <- "NO"
-transform_data_value <- "NO"
-smoothing_value <- paste0("YES", "\n( ", "Savitzky-Golay", ",\n" , "medium", " )")
-baseline_subtraction_value <- paste0("YES", "\n( ", "SNIP", ",\niterations: ", "200", " )")
-normalization_value <- paste0("YES", "\n( ", "TIC", " )")
-spectral_alignment_value <- "NO"
-spectral_alignment_algorithm_value <- ""
-spectral_alignment_reference_value <- ""
-peak_deisotoping_enveloping_value <- "None"
-RData_file_integrity_value <- "NO RDATA FILE\nSELECTED"
-classification_mode_value <- "pixel"
-decision_method_ensemble_value <- paste0(decision_method_ensemble, "\n(", vote_weights_ensemble, ")")
-
-
-
-
-
-
-##################################################### DEFINE WHAT THE BUTTONS DO
-
-##### Check for updates (from my GitHub page) (it just updates the label telling the user if there are updates) (it updates the check for updates value that is called by the label)
-check_for_updates_function <- function() {
-    ### Initialize the version number
-    online_version_number <- NULL
-    ### Initialize the variable that says if there are updates
-    update_available <- FALSE
-    ### Initialize the change log
-    online_change_log <- "Bug fixes"
-    # Check if there is internet connection by pinging a website
-    there_is_internet <- check_internet_connection(method = "getURL", website_to_ping = "www.google.it")
-    # Check for updates only in case of working internet connection
-    if (there_is_internet == TRUE) {
-        try({
-            ### Read the file from the web (first 10 lines)
-            online_file <- readLines(con = github_R_url)
-            ### Retrieve the version number
-            for (l in online_file) {
-                if (length(grep("R_script_version", l, fixed = TRUE)) > 0) {
-                    # Isolate the "variable" value
-                    online_version_number <- unlist(strsplit(l, "R_script_version <- ", fixed = TRUE))[2]
-                    # Remove the quotes
-                    online_version_number <- unlist(strsplit(online_version_number, "\""))[2]
-                    break
-                }
-            }
-            ### Retrieve the change log
-            for (l in online_file) {
-                if (length(grep("change_log", l, fixed = TRUE)) > 0) {
-                    # Isolate the "variable" value
-                    online_change_log <- unlist(strsplit(l, "change_log <- ", fixed = TRUE))[2]
-                    # Remove the quotes
-                    online_change_log_split <- unlist(strsplit(online_change_log, "\""))[2]
-                    # Split at the \n
-                    online_change_log_split <- unlist(strsplit(online_change_log_split, "\\\\n"))
-                    # Put it back to the character
-                    online_change_log <- ""
-                    for (o in online_change_log_split) {
-                        online_change_log <- paste(online_change_log, o, sep = "\n")
-                    }
-                    break
-                }
-            }
-            ### Split the version number in YYYY.MM.DD
-            online_version_YYYYMMDDVV <- unlist(strsplit(online_version_number, ".", fixed = TRUE))
-            ### Compare with the local version
-            local_version_YYYYMMDDVV = unlist(strsplit(R_script_version, ".", fixed = TRUE))
-            ### Check the versions (from the Year to the Day)
-            # Check the year
-            if (as.numeric(local_version_YYYYMMDDVV[1]) < as.numeric(online_version_YYYYMMDDVV[1])) {
-                update_available <- TRUE
-            }
-            # If the year is the same (update is FALSE), check the month
-            if (update_available == FALSE) {
-                if ((as.numeric(local_version_YYYYMMDDVV[1]) == as.numeric(online_version_YYYYMMDDVV[1])) && (as.numeric(local_version_YYYYMMDDVV[2]) < as.numeric(online_version_YYYYMMDDVV[2]))) {
-                    update_available <- TRUE
-                }
-            }
-            # If the month and the year are the same (update is FALSE), check the day
-            if (update_available == FALSE) {
-                if ((as.numeric(local_version_YYYYMMDDVV[1]) == as.numeric(online_version_YYYYMMDDVV[1])) && (as.numeric(local_version_YYYYMMDDVV[2]) == as.numeric(online_version_YYYYMMDDVV[2])) && (as.numeric(local_version_YYYYMMDDVV[3]) < as.numeric(online_version_YYYYMMDDVV[3]))) {
-                    update_available <- TRUE
-                }
-            }
-            # If the day and the month and the year are the same (update is FALSE), check the daily version
-            if (update_available == FALSE) {
-                if ((as.numeric(local_version_YYYYMMDDVV[1]) == as.numeric(online_version_YYYYMMDDVV[1])) && (as.numeric(local_version_YYYYMMDDVV[2]) == as.numeric(online_version_YYYYMMDDVV[2])) && (as.numeric(local_version_YYYYMMDDVV[3]) == as.numeric(online_version_YYYYMMDDVV[3])) && (as.numeric(local_version_YYYYMMDDVV[4]) < as.numeric(online_version_YYYYMMDDVV[4]))) {
-                    update_available <- TRUE
-                }
-            }
-            ### Return messages
-            if (is.null(online_version_number)) {
-                # The version number could not be ckecked due to internet problems
-                # Update the label
-                check_for_updates_value <- paste("Version: ", R_script_version, "\nUpdates not checked:\nconnection problems", sep = "")
-            } else {
-                if (update_available == TRUE) {
-                    # Update the label
-                    check_for_updates_value <- paste("Version: ", R_script_version, "\nUpdate available:\n", online_version_number, sep = "")
-                } else {
-                    # Update the label
-                    check_for_updates_value <- paste("Version: ", R_script_version, "\nNo updates available", sep = "")
-                }
-            }
-        }, silent = TRUE)
-    }
-    ### Something went wrong: library not installed, retrieving failed, errors in parsing the version number
-    if (is.null(online_version_number)) {
-        # Update the label
-        check_for_updates_value <- paste("Version: ", R_script_version, "\nUpdates not checked:\nconnection problems", sep = "")
-    }
-    # Escape the function
-    update_available <<- update_available
-    online_change_log <<- online_change_log
-    check_for_updates_value <<- check_for_updates_value
-    online_version_number <<- online_version_number
-}
-
-##### Download the updated file (from my GitHub page)
-download_updates_function <- function() {
-    # Download updates only if there are updates available
-    if (update_available == TRUE) {
-        # Initialize the variable which says if the file has been downloaded successfully
-        file_downloaded <- FALSE
-        # Choose where to save the updated script
-        tkmessageBox(title = "Download folder", message = "Select where to save the updated script file", icon = "info")
-        download_folder <- tclvalue(tkchooseDirectory())
-        if (!nchar(download_folder)) {
-            # Get the output folder from the default working directory
-            download_folder <- getwd()
-        }
-        # Go to the working directory
-        setwd(download_folder)
-        tkmessageBox(message = paste("The updated script file will be downloaded in:\n\n", download_folder, sep = ""))
-        # Download the file
-        try({
-            download.file(url = github_R_url, destfile = paste(script_file_name, " (", online_version_number, ").R", sep = ""), method = "auto")
-            file_downloaded <- TRUE
-        }, silent = TRUE)
-        if (file_downloaded == TRUE) {
-            tkmessageBox(title = "Updated file downloaded!", message = paste("The updated script, named:\n\n", paste(script_file_name, " (", online_version_number, ").R", sep = ""), "\n\nhas been downloaded to:\n\n", download_folder, "\n\nClose everything, delete this file and run the script from the new file!", sep = ""), icon = "info")
-            tkmessageBox(title = "Changelog", message = paste("The updated script contains the following changes:\n", online_change_log, sep = ""), icon = "info")
-        } else {
-            tkmessageBox(title = "Connection problem", message = paste("The updated script file could not be downloaded due to internet connection problems!\n\nManually download the updated script file at:\n\n", github_R_url, sep = ""), icon = "warning")
-        }
-    } else {
-        tkmessageBox(title = "No update available", message = "NO UPDATES AVAILABLE!\n\nThe latest version is running!", icon = "info")
-    }
-}
-
-##### Preprocessing window
-preprocessing_window_function <- function() {
-    ##### Functions
-    # Transform the data
-    transform_data_choice <- function() {
-        # Ask for the algorithm
-        transform_data_algorithm_input <- select.list(c("Square root", "Natural logarithm", "Decimal logarithm", "Binary Logarithm", "None"), title = "Data transformation", multiple = FALSE, preselect = "None")
-        # Default and fix
-        if (transform_data_algorithm_input == "Square root") {
-            transform_data_algorithm <- "sqrt"
-        } else if (transform_data_algorithm_input == "Natural logarithm") {
-            transform_data_algorithm <- "log"
-        } else if (transform_data_algorithm_input == "Binary Logarithm") {
-            transform_data_algorithm <- "log2"
-        } else if (transform_data_algorithm_input == "Decimal logarithm") {
-            transform_data_algorithm <- "log10"
-        } else if (transform_data_algorithm_input == "" || transform_data_algorithm_input == "None") {
-            transform_data_algorithm <- NULL
-        }
-        # Set the value of the displaying label
-        if (!is.null(transform_data_algorithm)) {
-            transform_data_value <- paste0("YES", "\n( ", transform_data_algorithm_input, " )")
-        } else {
-            transform_data_value <- "None"
-        }
-        transform_data_value_label <- tklabel(preproc_window, text = transform_data_value, font = label_font, bg = "white", width = 20, height = 2)
-        tkgrid(transform_data_value_label, row = 3, column = 2, padx = c(5, 5), pady = c(5, 5))
-        # Escape the function
-        transform_data_algorithm <<- transform_data_algorithm
-        transform_data_value <<- transform_data_value
-    }
-    # Smoothing
-    smoothing_choice <- function() {
-        # Ask for the algorithm
-        smoothing_algorithm_input <- select.list(c("Savitzky-Golay","Moving Average", "None"), title = "Smoothing algorithm", multiple = FALSE, preselect = "SavitzkyGolay")
-        # Default and fix
-        if (smoothing_algorithm_input == "" || smoothing_algorithm_input == "Savitzky-Golay") {
-            smoothing_algorithm <- "SavitzkyGolay"
-        } else if (smoothing_algorithm_input == "Moving Average") {
-            smoothing_algorithm <- "MovingAverage"
-        } else if (smoothing_algorithm_input == "None") {
-            smoothing_algorithm <- NULL
-        }
-        # Strength
-        if (!is.null(smoothing_algorithm)) {
-            smoothing_strength <- select.list(c("medium", "strong", "stronger"), title = "Smoothing strength", multiple = FALSE, preselect = "medium")
-            if (smoothing_strength == "") {
-                smoothing_strength <- "medium"
-            }
-        }
-        # Set the value of the displaying label
-        if (!is.null(smoothing_algorithm)) {
-            smoothing_value <- paste0("YES", "\n( ", smoothing_algorithm_input, ",\n" , smoothing_strength, " )")
-        } else {
-            smoothing_value <- "None"
-        }
-        smoothing_value_label <- tklabel(preproc_window, text = smoothing_value, font = label_font, bg = "white", width = 20, height = 3)
-        tkgrid(smoothing_value_label, row = 4, column = 2, padx = c(5, 5), pady = c(5, 5))
-        # Escape the function
-        smoothing_strength <<- smoothing_strength
-        smoothing_algorithm <<- smoothing_algorithm
-        smoothing_value <<- smoothing_value
-    }
-    # Baseline subtraction
-    baseline_subtraction_choice <- function() {
-        # Ask for the algorithm
-        baseline_subtraction_algorithm <- select.list(c("SNIP", "TopHat", "ConvexHull", "median", "None"), title = "Baseline subtraction algorithm", multiple = FALSE, preselect = "SNIP")
-        # Default
-        if (baseline_subtraction_algorithm == "") {
-            baseline_subtraction_algorithm <- "SNIP"
-            baseline_subtraction_algorithm_parameter <- 200
-        }
-        if (baseline_subtraction_algorithm == "None") {
-            baseline_subtraction_algorithm <- NULL
-        }
-        # SNIP
-        if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "SNIP") {
-            baseline_subtraction_algorithm_parameter <- tclvalue(baseline_subtraction_algorithm_parameter2)
-            baseline_subtraction_algorithm_parameter_value <- as.character(baseline_subtraction_algorithm_parameter)
-            baseline_subtraction_algorithm_parameter <- as.integer(baseline_subtraction_algorithm_parameter)
-        } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "TopHat") {
-            baseline_subtraction_algorithm_parameter <- tclvalue(baseline_subtraction_algorithm_parameter2)
-            baseline_subtraction_algorithm_parameter_value <- as.character(baseline_subtraction_algorithm_parameter)
-            baseline_subtraction_algorithm_parameter <- as.integer(baseline_subtraction_algorithm_parameter)
-        } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "median") {
-            baseline_subtraction_algorithm_parameter <- tclvalue(baseline_subtraction_algorithm_parameter2)
-            baseline_subtraction_algorithm_parameter_value <- as.character(baseline_subtraction_algorithm_parameter)
-            baseline_subtraction_algorithm_parameter <- as.integer(baseline_subtraction_algorithm_parameter)
-        }
-        # Set the value of the displaying label
-        if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "SNIP") {
-            baseline_subtraction_value <- paste0("YES", "\n( ", baseline_subtraction_algorithm, ",\nIterations: ", baseline_subtraction_algorithm_parameter, " )")
-        } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "TopHat") {
-            baseline_subtraction_value <- paste0("YES", "\n( ", baseline_subtraction_algorithm, ",\nHalf window size: ", baseline_subtraction_algorithm_parameter, " )")
-        } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "median") {
-            baseline_subtraction_value <- paste0("YES", "\n( ", baseline_subtraction_algorithm, ",\nHalf window size: ", baseline_subtraction_algorithm_parameter, " )")
-        } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "ConvexHull") {
-            baseline_subtraction_value <- paste0("YES", "\n( ", baseline_subtraction_algorithm, ")")
-        } else {
-            baseline_subtraction_value <- "None"
-        }
-        baseline_subtraction_value_label <- tklabel(preproc_window, text = baseline_subtraction_value, font = label_font, bg = "white", width = 20, height = 3)
-        tkgrid(baseline_subtraction_value_label, row = 5, column = 3, padx = c(5, 5), pady = c(5, 5))
-        # Escape the function
-        baseline_subtraction_algorithm_parameter <<- baseline_subtraction_algorithm_parameter
-        baseline_subtraction_algorithm <<- baseline_subtraction_algorithm
-        baseline_subtraction_value <<- baseline_subtraction_value
-    }
-    # Normalization
-    normalization_choice <- function() {
-        # Ask for the algorithm
-        normalization_algorithm <- select.list(c("TIC", "RMS", "PQN", "median", "None"), title = "Normalization algorithm", multiple = FALSE, preselect = "TIC")
-        if (normalization_algorithm == "") {
-            normalization_algorithm <- "TIC"
-        }
-        if (normalization_algorithm == "None") {
-            normalization_algorithm <- NULL
-        }
-        # TIC
-        if (!is.null(normalization_algorithm) && normalization_algorithm == "TIC") {
-            normalization_mass_range <- tclvalue(normalization_mass_range2)
-            normalization_mass_range_value <- as.character(normalization_mass_range)
-            if (normalization_mass_range != 0 && normalization_mass_range != "") {
-                normalization_mass_range <- unlist(strsplit(normalization_mass_range, ","))
-                normalization_mass_range <- as.numeric(normalization_mass_range)
-            } else if (normalization_mass_range == 0 || normalization_mass_range == "") {
-                normalization_mass_range <- NULL
-            }
-        }
-        # Set the value of the displaying label
-        if (!is.null(normalization_algorithm) && normalization_algorithm != "TIC") {
-            normalization_value <- paste0("YES", "\n( ", normalization_algorithm, " )\n")
-        } else if (!is.null(normalization_algorithm) && normalization_algorithm == "TIC") {
-            if (!is.null(normalization_mass_range)) {
-                normalization_value <- paste0("YES", "\n( ", normalization_algorithm, ",\nrange:\n", normalization_mass_range_value, " )")
-            } else {
-                normalization_value <- paste0("YES", "\n( ", normalization_algorithm, " )")
-            }
-        } else {
-            normalization_value <- "None"
-        }
-        normalization_value_label <- tklabel(preproc_window, text = normalization_value, font = label_font, bg = "white", width = 20, height = 4)
-        tkgrid(normalization_value_label, row = 7, column = 3, padx = c(5, 5), pady = c(5, 5))
-        # Escape the function
-        normalization_mass_range <<- normalization_mass_range
-        normalization_algorithm <<- normalization_algorithm
-        normalization_value <<- normalization_value
-    }
-    # Spectral alignment
-    spectral_alignment_choice <- function() {
-        # Ask for the algorithm
-        spectral_alignment_algorithm <- select.list(c("cubic", "quadratic", "linear", "lowess", "None"), title = "Spectral alignment algorithm", multiple = FALSE, preselect = "cubic")
-        # Default
-        if (spectral_alignment_algorithm == "") {
-            spectral_alignment_algorithm <- "None"
-        }
-        if (spectral_alignment_algorithm == "None") {
-            spectral_alignment_algorithm <- NULL
-        }
-        ## Ask for the reference peaklist
-        if (!is.null(spectral_alignment_algorithm)) {
-            spectral_alignment_reference <- select.list(c("auto","average spectrum", "skyline spectrum"), title = "Spectral alignment reference", multiple = FALSE, preselect = "average spectrum")
-            if (spectral_alignment_reference == "") {
-                spectral_alignment_reference <- "average spectrum"
-            }
-        } else {
-            spectral_alignment_reference <- NULL
-        }
-        # Set the value of the displaying label
-        if (!is.null(spectral_alignment_algorithm)) {
-            spectral_alignment_value <- paste0("YES", "\n( ", spectral_alignment_algorithm, ",\n", spectral_alignment_reference, " )")
-        } else {
-            spectral_alignment_value <- "None"
-        }
-        spectral_alignment_value_label <- tklabel(preproc_window, text = spectral_alignment_value, font = label_font, bg = "white", width = 20, height = 3)
-        tkgrid(spectral_alignment_value_label, row = 8, column = 2, padx = c(5, 5), pady = c(5, 5))
-        # Escape the function
-        spectral_alignment_algorithm <<- spectral_alignment_algorithm
-        spectral_alignment_reference <<- spectral_alignment_reference
-        spectral_alignment_value <<- spectral_alignment_value
-    }
-    # TOF mode
-    tof_mode_choice <- function() {
-        # Catch the value from the menu
-        tof_mode <- select.list(c("Linear", "Reflector"), title = "TOF mode")
-        # Default
-        if (tof_mode == "" || tof_mode == "Linear") {
-            tof_mode <- "linear"
-        }
-        if (tof_mode == "Reflector") {
-            tof_mode <- "reflector"
-        }
-        # Set the value of the displaying label
-        if (tof_mode == "linear") {
-            tof_mode_value <- "Linear"
-        } else if (tof_mode == "reflector") {
-            tof_mode_value <- "Reflector"
-        }
-        tof_mode_value_label <- tklabel(preproc_window, text = tof_mode_value, font = label_font, bg = "white", width = 20)
-        tkgrid(tof_mode_value_label, row = 2, column = 3, padx = c(5, 5), pady = c(5, 5))
-        # Escape the function
-        tof_mode <<- tof_mode
-        tof_mode_value <<- tof_mode_value
-    }
-    # Commit preprocessing
-    commit_preprocessing_function <- function() {
-        # Get the values (they are filled with the default anyway)
-        # Mass range
-        mass_range <- tclvalue(mass_range2)
-        mass_range <- as.numeric(unlist(strsplit(mass_range, ",")))
-        mass_range_value <- as.character(paste(mass_range[1], ",", mass_range[2]))
-        # Preprocessing
-        preprocess_spectra_in_packages_of <- tclvalue(preprocess_spectra_in_packages_of2)
-        preprocess_spectra_in_packages_of <- as.integer(preprocess_spectra_in_packages_of)
-        preprocess_spectra_in_packages_of_value <- as.character(preprocess_spectra_in_packages_of)
-        # Escape the function
-        mass_range <<- mass_range
-        mass_range_value <<- mass_range_value
-        preprocess_spectra_in_packages_of <<- preprocess_spectra_in_packages_of
-        preprocessing_parameters <<- list(mass_range = mass_range, transformation_algorithm = transform_data_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_strength = smoothing_strength, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range, preprocess_spectra_in_packages_of = preprocess_spectra_in_packages_of, spectral_alignment_algorithm = spectral_alignment_algorithm, spectral_alignment_reference = spectral_alignment_reference)
-        # Destroy the window upon committing
-        tkdestroy(preproc_window)
-    }
-    ##### List of variables, whose values are taken from the entries in the GUI (create new variables for the sub window, that will replace the ones in the global environment, only if the default are changed)
-    mass_range2 <- tclVar("")
-    preprocess_spectra_in_packages_of2 <- tclVar("")
-    baseline_subtraction_algorithm_parameter2 <- tclVar("")
-    normalization_mass_range2 <- tclVar("")
-    ##### Window
-    preproc_window <- tktoplevel(bg = "white")
-    tkwm.resizable(preproc_window, FALSE, FALSE)
-    tktitle(preproc_window) <- "Spectral preprocessing parameters"
-    #tkpack.propagate(preproc_window, FALSE)
-    # Mass range
-    mass_range_label <- tklabel(preproc_window, text = "Mass range", font = label_font, bg = "white", width = 20)
-    mass_range_entry <- tkentry(preproc_window, textvariable = mass_range2, font = entry_font, bg = "white", width = 20, justify = "center")
-    tkinsert(mass_range_entry, "end", as.character(paste(mass_range[1],",",mass_range[2])))
-    # Preprocessing (in packages of)
-    preprocess_spectra_in_packages_of_label <- tklabel(preproc_window, text="Preprocess spectra\nin packages of", font = label_font, bg = "white", width = 20)
-    preprocess_spectra_in_packages_of_entry <- tkentry(preproc_window, textvariable = preprocess_spectra_in_packages_of2, font = entry_font, bg = "white", width = 10, justify = "center")
-    tkinsert(preprocess_spectra_in_packages_of_entry, "end", as.character(preprocess_spectra_in_packages_of))
-    # Tof mode
-    tof_mode_label <- tklabel(preproc_window, text="Select the TOF mode", font = label_font, bg = "white", width = 20)
-    tof_mode_entry <- tkbutton(preproc_window, text="Choose the TOF mode", command = tof_mode_choice, font = button_font, bg = "white", width = 20)
-    # Transform the data
-    transform_data_button <- tkbutton(preproc_window, text="Data transformation", command = transform_data_choice, font = button_font, bg = "white", width = 20)
-    # Smoothing
-    smoothing_button <- tkbutton(preproc_window, text="Smoothing", command = smoothing_choice, font = button_font, bg = "white", width = 20)
-    # Baseline subtraction
-    baseline_subtraction_button <- tkbutton(preproc_window, text="Baseline subtraction", command = baseline_subtraction_choice, font = button_font, bg = "white", width = 20)
-    baseline_subtraction_algorithm_parameter_entry <- tkentry(preproc_window, textvariable = baseline_subtraction_algorithm_parameter2, font = entry_font, bg = "white", width = 10, justify = "center")
-    tkinsert(baseline_subtraction_algorithm_parameter_entry, "end", as.character(baseline_subtraction_algorithm_parameter))
-    # Normalization
-    normalization_button <- tkbutton(preproc_window, text="Normalization", command = normalization_choice, font = button_font, bg = "white", width = 20)
-    normalization_mass_range_entry <- tkentry(preproc_window, textvariable = normalization_mass_range2, font = entry_font, bg = "white", width = 20, justify = "center")
-    tkinsert(normalization_mass_range_entry, "end", as.character(normalization_mass_range))
-    # Spectral alignment
-    spectral_alignment_button <- tkbutton(preproc_window, text="Align spectra", command = spectral_alignment_choice, font = button_font, bg = "white", width = 20)
-    # Commit preprocessing
-    commit_preprocessing_button <- tkbutton(preproc_window, text="Commit preprocessing", command = commit_preprocessing_function, font = button_font, bg = "white", width = 20)
-    ##### Displaying labels
-    tof_mode_value_label <- tklabel(preproc_window, text = tof_mode_value, font = label_font, bg = "white", width = 20)
-    transform_data_value_label <- tklabel(preproc_window, text = transform_data_value, font = label_font, bg = "white", width = 20, height = 2)
-    smoothing_value_label <- tklabel(preproc_window, text = smoothing_value, font = label_font, bg = "white", width = 20, height = 3)
-    baseline_subtraction_value_label <- tklabel(preproc_window, text = baseline_subtraction_value, font = label_font, bg = "white", width = 20, height = 3)
-    normalization_value_label <- tklabel(preproc_window, text = normalization_value, font = label_font, bg = "white", width = 20, height = 4)
-    spectral_alignment_value_label <- tklabel(preproc_window, text = spectral_alignment_value, font = label_font, bg = "white", width = 20, height = 3)
-    #### Geometry manager
-    tkgrid(mass_range_label, row = 1, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(mass_range_entry, row = 1, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(tof_mode_label, row = 2, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(tof_mode_entry, row = 2, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(tof_mode_value_label, row = 2, column = 3, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(transform_data_button, row = 3, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(transform_data_value_label, row = 3, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(smoothing_button, row = 4, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(smoothing_value_label, row = 4, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(baseline_subtraction_button, row = 5, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(baseline_subtraction_algorithm_parameter_entry, row = 5, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(baseline_subtraction_value_label, row = 5, column = 3, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(normalization_button, row = 7, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(normalization_mass_range_entry, row = 7, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(normalization_value_label, row = 7, column = 3, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(preprocess_spectra_in_packages_of_label, row = 9, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(preprocess_spectra_in_packages_of_entry, row = 9, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(spectral_alignment_button, row = 8, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(spectral_alignment_value_label, row = 8, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(commit_preprocessing_button, row = 10, column = 1, columnspan = 3, padx = c(5, 5), pady = c(5, 5))
-}
-
-##### File type export MATRIX
-file_type_export_matrix_choice <- function() {
-    # Catch the value from the menu
-    file_type_export_matrix <- select.list(c("csv","xlsx","xls"), title = "File type export", multiple = FALSE, preselect = "csv")
-    # Default
-    if (file_type_export_matrix == "") {
-        file_type_export_matrix <- "csv"
-    }
-    if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
-        install_and_load_required_packages("XLConnect")
-    }
-    # Escape the function
-    file_type_export_matrix <<- file_type_export_matrix
-    # Set the value of the displaying label
-    file_type_export_matrix_value_label <- tklabel(window, text = file_type_export_matrix, font = label_font, bg = "white", width = 20)
-    tkgrid(file_type_export_matrix_value_label, row = 6, column = 2)
-}
-
-##### File type export IMAGES
-file_type_export_images_choice <- function() {
-    # Catch the value from the menu
-    file_type_export_images <- select.list(c("png","jpg","tiff"), title = "Image type export", multiple = FALSE, preselect = "png")
-    # Default
-    if (file_type_export_images == "") {
-        file_type_export_images <- "png"
-    }
-    # Escape the function
-    file_type_export_images <<- file_type_export_images
-    # Set the value of the displaying label
-    file_type_export_images_value_label <- tklabel(window, text = file_type_export_images, font = label_font, bg = "white", width = 20)
-    tkgrid(file_type_export_images_value_label, row = 6, column = 4)
-}
-
-##### Classification mode choice
-classification_mode_choice <- function() {
-    # Catch the value from the menu
-    classification_mode <- select.list(c("pixel", "profile"), title = "Classification mode", multiple = TRUE, preselect = "pixel")
-    # Default
-    if (length(classification_mode) == 1 && classification_mode == "") {
-        classification_mode <- "pixel"
-        classification_mode_value <- "pixel"
-    }
-    # Choose the pixel grouping
-    if ("pixel" %in% classification_mode) {
-        ## Choose the pixel grouping
-        pixel_grouping <- select.list(c("single", "hca", "moving window average"), title = "Pixel grouping", preselect = "single")
-        if (pixel_grouping == "") {
-            pixel_grouping <- "single"
-        }
-        # Escape the function
-        pixel_grouping <<- pixel_grouping
-        if (pixel_grouping == "moving window average") {
-            moving_window_size <- as.integer(select.list(c(2, 3, 4, 5, 10, 15, 20, 25, 50, 100, 200, 300, 500, 1000), title = "Moving window size", preselect = 5))
-            if (moving_window_size == "") {
-                moving_window_size <- 5
-            }
-            # Escape the function
-            moving_window_size <<- moving_window_size
-        } else if (pixel_grouping == "hca") {
-            number_of_hca_nodes <- as.integer(select.list(c(2, 3, 4, 5, 10, 15, 20, 25, 50, 100, 200, 300, 500, 1000), title = "Number of HC nodes", preselect = 4))
-            if (number_of_hca_nodes == "") {
-                number_of_hca_nodes <- 4
-            }
-            # Escape the function
-            number_of_hca_nodes <<- number_of_hca_nodes
-        }
-    }
-    # Fix the displaying value
-    if ("profile" %in% classification_mode && "pixel" %in% classification_mode) {
-        classification_mode_value <- "pixel + profile"
-    } else if (classification_mode == "profile") {
-        classification_mode_value <- "   profile   "
-    } else if (classification_mode == "pixel") {
-        classification_mode_value <- "  pixel  "
-    }
-    # Escape the function
-    classification_mode <<- classification_mode
-    classification_mode_value <<- classification_mode_value
-    # Set the value of the displaying label
-    classification_mode_value_label <- tklabel(window, text = classification_mode_value, font = label_font, bg = "white", width = 20)
-    tkgrid(classification_mode_value_label, row = 5, column = 2)
-}
-
-##### Samples
-select_samples_function <- function() {
-    # Set the working directory
-    setwd(getwd())
-    ########## Prompt if a folder has to be selected or a single file
-    # Catch the value from the popping out menu
-    spectra_input_type <- select.list(c("file","folder"), title = "Folder or file?", multiple = FALSE, preselect = "file")
-    # Default
-    if (spectra_input_type == "") {
-        spectra_input_type <- "file"
-    }
-    # Folder
-    if (spectra_input_type == "folder") {
-        filepath_import_select <- tkmessageBox(title = "Samples", message = "Select the folder for the spectra (stored as imzML files) to be imported: each imzML file should correspond to a patient's spectral dataset, and the imzML files should be put in folders corresponding to the different classes of samples", icon = "info")
-        filepath_import <- tclvalue(tkchooseDirectory())
-        if (!nchar(filepath_import)) {
-            tkmessageBox(message = "No folder selected")
-            filepath_import <- NULL
-        } else {
-            tkmessageBox(message = paste("The sample spectra will be read from:\n\n", filepath_import))
-        }
-    } else if (spectra_input_type == "file") {
-        # File
-        filepath_import_select <- tkmessageBox(title = "Sample file", message = "Select the imzML file for the spectra to be imported: the imzML file should correspond to a patient's spectral dataset", icon = "info")
-        filepath_import <- tclvalue(tkgetOpenFile(filetypes = "{{imzML files} {.imzML .imzml}}"))
-        if (!nchar(filepath_import)) {
-            tkmessageBox(message = "No file selected")
-            filepath_import <- NULL
-        } else {
-            tkmessageBox(message = paste("The sample spectra will be read from:\n\n", filepath_import))
-        }
-    }
-    # Set the value for displaying purposes
-    filepath_import_value <- filepath_import
-    # Exit the function and put the variable into the R workspace
-    filepath_import <<- filepath_import
-}
-
-##### RData file containing the models
-select_RData_file_function <- function() {
-    # Set the working directory
-    setwd(getwd())
-    filepath_R_import_select <- tkmessageBox(title = "RData file", message = "Select the RData file containing the model list", icon = "info")
-    filepath_R <- tclvalue(tkgetOpenFile(filetypes = "{{RData files} {.RData}}"))
-    if (!nchar(filepath_R)) {
-        tkmessageBox(message = "No RData file selected")
-        filepath_R <- NULL
-        RData_file_integrity <- FALSE
-        RData_file_integrity_value <- "NO RDATA FILE\nSELECTED"
-    } else {
-        tkmessageBox(message = paste("The model list will be read from:\n\n", filepath_R))
-        # Define the progressbar
-        RData_progress_bar <- tkProgressBar(title = "RData integrity verification", label = "", min = 0, max = 1, initial = 0, width = 300)
-        # Retrieve the content of the RData workspace
-        setTkProgressBar(RData_progress_bar, value = 0, title = NULL, label = "0 %")
-        RData_file_integrity <- FALSE
-        RData_file_integrity_value <- "INTEGRITY TEST\nFAILED"
-        try(RData_variables <- R_workspace_data_retriever(filepath_R)$variable_list)
-        setTkProgressBar(RData_progress_bar, value = 0.50, title = NULL, label = "50 %")
-        # Check for integrity of the RData file
-        try({
-            if (all(c("model_list", "model_bayesian_probabilities") %in% RData_variables)) {
-                RData_file_integrity <- TRUE
-                RData_file_integrity_value <- "INTEGRITY TEST\nSUCCEDED"
-            }
-        })
-        setTkProgressBar(RData_progress_bar, value = 1, title = NULL, label = "100 %")
-        close(RData_progress_bar)
-    }
-    RData_file_integrity_value_label <- tklabel(window, text = RData_file_integrity_value, font = label_font, bg = "white", width = 20)
-    tkgrid(RData_file_integrity_value_label, row = 5, column = 4)
-    # Exit the function and put the variable into the R workspace
-    filepath_R <<- filepath_R
-    RData_file_integrity <<- RData_file_integrity
-    RData_file_integrity_value <<- RData_file_integrity_value
-}
-
-##### Output
-browse_output_function <- function() {
-    output_folder <- tclvalue(tkchooseDirectory())
-    if (!nchar(output_folder)) {
-        # Get the output folder from the default working directory
-        output_folder <- getwd()
-    }
-    tkmessageBox(message = paste("Every file will be saved in:\n\n", output_folder))
-    setwd(output_folder)
-    # Exit the function and put the variable into the R workspace
-    output_folder <<- output_folder
-}
-
-##### Exit
-end_session_function <- function () {
-    q(save = "no")
-}
-
-##### Peak picking algorithm
-peak_picking_algorithm_choice <- function() {
-    # Catch the value from the menu
-    peak_picking_algorithm <- select.list(c("MAD", "SuperSmoother"), title = "Peak picking algorithm", multiple = FALSE, preselect = "MAD")
-    # Default
-    if (peak_picking_algorithm == "") {
-        peak_picking_algorithm <- "MAD"
-    }
-    # Set the value of the displaying label
-    peak_picking_algorithm_value <- peak_picking_algorithm
-    if (peak_picking_algorithm_value == "MAD") {
-        peak_picking_algorithm_value <- "Median\nAbsolute Deviation"
-    } else if (peak_picking_algorithm_value == "SuperSmoother") {
-        peak_picking_algorithm_value <- "Super Smoother"
-    }
-    peak_picking_algorithm_value_label <- tklabel(window, text = peak_picking_algorithm_value, font = label_font, bg = "white", width = 20, height = 2)
-    tkgrid(peak_picking_algorithm_value_label, row = 2, column = 2)
-    # Escape the function
-    peak_picking_algorithm <<- peak_picking_algorithm
-    peak_picking_algorithm_value <<- peak_picking_algorithm_value
-}
-
-##### Peaks deisotoping or enveloping
-peak_deisotoping_enveloping_choice <- function() {
-    # Catch the value from the menu
-    peak_deisotoping_enveloping <- select.list(c("Peak Deisotoping","Peak Enveloping", "None"), title = "Peak Deisotoping/Enveloping", multiple = FALSE, preselect = "Peak Deisotoping")
-    # Default
-    if (peak_deisotoping_enveloping == "") {
-        peak_deisotoping_enveloping <- "Peak Deisotoping"
-    }
-    if (peak_deisotoping_enveloping == "Peak Deisotoping") {
-        peak_deisotoping <- TRUE
-        peak_enveloping <- FALSE
-    } else if (peak_deisotoping_enveloping == "Peak Enveloping") {
-        peak_deisotoping <- FALSE
-        peak_enveloping <- TRUE
-    } else if (peak_deisotoping_enveloping == "None") {
-        peak_deisotoping <- FALSE
-        peak_enveloping <- FALSE
-    }
-    # Set the value of the displaying label
-    peak_deisotoping_enveloping_value <- peak_deisotoping_enveloping
-    peak_deisotoping_enveloping_value_label <- tklabel(window, text = peak_deisotoping_enveloping_value, font = label_font, bg = "white", width = 20)
-    tkgrid(peak_deisotoping_enveloping_value_label, row = 2, column = 4, padx = c(10, 10), pady = c(10, 10))
-    # Escape the function
-    peak_deisotoping <<- peak_deisotoping
-    peak_enveloping <<- peak_enveloping
-    peak_deisotoping_enveloping_value <<- peak_deisotoping_enveloping_value
-}
-
-##### Decision method ensemble
-decision_method_ensemble_choice <- function() {
-    # Catch the value from the menu
-    decision_method_ensemble <- select.list(c("majority"), title = "Decision method", multiple = FALSE, preselect = "majority")
-    # Default
-    if (decision_method_ensemble == "") {
-        decision_method_ensemble <- "majority"
-    }
-    # Vote weights
-    if (decision_method_ensemble == "majority") {
-        # Catch the value from the menu
-        vote_weights_ensemble <- select.list(c("equal", "class assignment probabilities", "bayesian probabilities"), title = "Vote weights", multiple = FALSE, preselect = "equal")
-        # Default
-        if (vote_weights_ensemble == "") {
-            vote_weights_ensemble <- "equal"
-        }
-        # Value
-        vote_weights_ensemble_value <- vote_weights_ensemble
-        if (vote_weights_ensemble_value == "class assignment probabilities") {
-            vote_weights_ensemble_value <- "class probs"
-        } else if (vote_weights_ensemble_value == "bayesian probabilities") {
-            vote_weights_ensemble_value <- "bayesian probs"
-        }
-        decision_method_ensemble_value <- paste0(decision_method_ensemble, "\n(", vote_weights_ensemble_value, ")")
-    }
-    # Value label
-    decision_method_ensemble_value_label <- tklabel(window, text = decision_method_ensemble_value, font = label_font, bg = "white", width = 20, height = 2)
-    tkgrid(decision_method_ensemble_value_label, row = 3, column = 3)
-    # Escape the function
-    vote_weights_ensemble <<- vote_weights_ensemble
-    decision_method_ensemble <<- decision_method_ensemble
-    decision_method_ensemble_value <<- decision_method_ensemble_value
-}
-
-##### Multicore processing
-allow_parallelization_choice <- function() {
-    ##### Messagebox
-    tkmessageBox(title = "Parallel processing is resource hungry", message = "Parallel processing is resource hungry.\nBy activating it, the computation becomes faster, but the program will eat a lot of RAM, possibly causing your computer to freeze. If you want to play safe, do not enable it.", icon = "warning")
-    # Catch the value from the menu
-    allow_parallelization <- select.list(c("YES","NO"), title = "Parallelization", multiple = FALSE, preselect = "NO")
-    # Default
-    if (allow_parallelization == "YES") {
-        allow_parallelization <- TRUE
-    }
-    if (allow_parallelization == "NO" || allow_parallelization == "") {
-        allow_parallelization <- FALSE
-    }
-    # Set the value of the displaying label
-    if (allow_parallelization == TRUE) {
-        allow_parallelization_value <- "YES"
-    } else {
-        allow_parallelization_value <- "  NO  "
-    }
-    allow_parallelization_value_label <- tklabel(window, text = allow_parallelization_value, font = label_font, bg = "white", width = 20)
-    tkgrid(allow_parallelization_value_label, row = 4, column = 2)
-    # Escape the function
-    allow_parallelization <<- allow_parallelization
-    allow_parallelization_value <<- allow_parallelization_value
-}
-
-##### Run the Peaklist Export function
-run_ms_pixel_typer_function <- function() {
-    ### Go to the working directory
-    setwd(output_folder)
-    # Initialize the file_dumped variable
+    ### Program version (Specified by the program writer!!!!)
+    R_script_version <- "2017.06.09.0"
+    ### GitHub URL where the R file is
+    github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Pixel-Typer/master/MS%20PIXEL%20TYPER.R"
+    ### GitHub URL of the program's WIKI
+    github_wiki_url <- "https://github.com/gmanuel89/MS-Pixel-Typer/wiki"
+    ### Name of the file when downloaded
+    script_file_name <- "MS PIXEL TYPER"
+    # Change log
+    change_log <- "1. New vote weights!!\n2. Fixed GUI"
+    
+    
+    
+    
+    
+    
+    ############## INSTALL AND LOAD THE REQUIRED PACKAGES
+    install_and_load_required_packages(c("tcltk", "parallel"), repository = "http://cran.mirror.garr.it/mirrors/CRAN/", update_packages = TRUE, print_messages = TRUE)
+    
+    
+    
+    
+    
+    
+    ###################################### Initialize the variables (default values)
+    filepath_import <- NULL
+    tof_mode <- "linear"
+    output_folder <- getwd()
+    spectra_format <- "imzml"
+    peaks_filtering <- TRUE
+    low_intensity_peak_removal_threshold_method <- "element-wise"
+    peak_picking_algorithm <- "SuperSmoother"
+    file_type_export_matrix <- "csv"
+    file_type_export_images <- "png"
+    spectra <- NULL
+    peaks <- NULL
+    allow_parallelization <- FALSE
+    transform_data_algorithm <- NULL
+    smoothing_algorithm <- "SavitzkyGolay"
+    smoothing_strength <- "medium"
+    baseline_subtraction_algorithm <- "SNIP"
+    baseline_subtraction_algorithm_parameter <- 200
+    normalization_algorithm <- "TIC"
+    normalization_mass_range <- NULL
+    preprocess_spectra_in_packages_of <- 0
+    mass_range <- c(3000, 15000)
+    spectral_alignment_algorithm <- NULL
+    spectral_alignment_reference <- NULL
+    peak_deisotoping <- FALSE
+    peak_enveloping <- FALSE
+    RData_file_integrity <- FALSE
+    classification_mode <- "pixel"
+    pixel_grouping <- "single"
+    decision_method_ensemble <- "majority"
+    vote_weights_ensemble <- "equal"
+    number_of_hca_nodes <- 4
+    moving_window_size <- 5
     files_dumped <- FALSE
-    # Escape the function
-    files_dumped <<- files_dumped
-    ######## Run only if all the elements needed are there
-    if (!is.null(filepath_import) && RData_file_integrity == TRUE) {
-        # Choose the legends to plot
-        plot_legends <- select.list(c("sample name", "legend", "plot name"), multiple = TRUE, preselect = "legend", title = "Legend to plot")
-        # Progress bar
-        program_progress_bar <- tkProgressBar(title = NULL, label = "", min = 0, max = 1, initial = 0, width = 300)
-        setTkProgressBar(program_progress_bar, value = 0, title = NULL, label = "0 %")
-        setTkProgressBar(program_progress_bar, value = 0.25, title = "Performing classification...", label = "25 %")
-        ########## Run the classification function
-        classification_of_patients <- spectral_classification(spectra_path = filepath_import, filepath_R = filepath_R, classification_mode = classification_mode, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = peak_deisotoping, preprocessing_parameters = preprocessing_parameters, tof_mode = tof_mode, allow_parallelization = allow_parallelization, decision_method_ensemble = decision_method_ensemble, vote_weights_ensemble = vote_weights_ensemble, pixel_grouping = pixel_grouping, moving_window_size = moving_window_size, number_of_hca_nodes = number_of_hca_nodes, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 50, iterations_with_no_change_GA = 5, seed = 12345, plot_figures = TRUE, plot_graphs = TRUE, plot_legends = plot_legends)
-        # Escape the function
-        classification_of_patients <<- classification_of_patients
-        setTkProgressBar(program_progress_bar, value = 0.75, title = "Saving files...", label = "75 %")
-        if (files_dumped == FALSE) {
-            # Dump the files
-            ms_pixel_typer_data_dumper_function()
-            files_dumped <- TRUE
+    preprocessing_parameters <- list(mass_range = mass_range, transformation_algorithm = transform_data_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_strength = smoothing_strength, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range, preprocess_spectra_in_packages_of = preprocess_spectra_in_packages_of, spectral_alignment_algorithm = spectral_alignment_algorithm, spectral_alignment_reference = spectral_alignment_reference)
+    
+    
+    
+    
+    ################## Values of the variables (for displaying and dumping purposes)
+    tof_mode_value <- "Linear"
+    filepath_import_value <- ""
+    output_folder_value <- output_folder
+    spectra_format_value <- "imzML"
+    peaks_filtering_value <- "YES"
+    peak_picking_algorithm_value <- "Super Smoother"
+    low_intensity_peak_removal_threshold_method_value <- "element-wise"
+    allow_parallelization_value <- "NO"
+    transform_data_value <- "NO"
+    smoothing_value <- paste0("YES", "\n( ", "Savitzky-Golay", ",\n" , "medium", " )")
+    baseline_subtraction_value <- paste0("YES", "\n( ", "SNIP", ",\niterations: ", "200", " )")
+    normalization_value <- paste0("YES", "\n( ", "TIC", " )")
+    spectral_alignment_value <- "NO"
+    spectral_alignment_algorithm_value <- ""
+    spectral_alignment_reference_value <- ""
+    peak_deisotoping_enveloping_value <- "None"
+    RData_file_integrity_value <- "NO RDATA FILE\nSELECTED"
+    classification_mode_value <- "pixel"
+    decision_method_ensemble_value <- paste0(decision_method_ensemble, "\n(", vote_weights_ensemble, ")")
+    
+    
+    
+    
+    
+    
+    ##################################################### DEFINE WHAT THE BUTTONS DO
+    
+    ##### Check for updates (from my GitHub page) (it just updates the label telling the user if there are updates) (it updates the check for updates value that is called by the label)
+    check_for_updates_function <- function() {
+        ### Initialize the version number
+        online_version_number <- NULL
+        ### Initialize the variable that says if there are updates
+        update_available <- FALSE
+        ### Initialize the change log
+        online_change_log <- "Bug fixes"
+        # Check if there is internet connection by pinging a website
+        there_is_internet <- check_internet_connection(method = "getURL", website_to_ping = "www.google.it")
+        # Check for updates only in case of working internet connection
+        if (there_is_internet == TRUE) {
+            try({
+                ### Read the file from the web (first 10 lines)
+                online_file <- readLines(con = github_R_url)
+                ### Retrieve the version number
+                for (l in online_file) {
+                    if (length(grep("R_script_version", l, fixed = TRUE)) > 0) {
+                        # Isolate the "variable" value
+                        online_version_number <- unlist(strsplit(l, "R_script_version <- ", fixed = TRUE))[2]
+                        # Remove the quotes
+                        online_version_number <- unlist(strsplit(online_version_number, "\""))[2]
+                        break
+                    }
+                }
+                ### Retrieve the change log
+                for (l in online_file) {
+                    if (length(grep("change_log", l, fixed = TRUE)) > 0) {
+                        # Isolate the "variable" value
+                        online_change_log <- unlist(strsplit(l, "change_log <- ", fixed = TRUE))[2]
+                        # Remove the quotes
+                        online_change_log_split <- unlist(strsplit(online_change_log, "\""))[2]
+                        # Split at the \n
+                        online_change_log_split <- unlist(strsplit(online_change_log_split, "\\\\n"))
+                        # Put it back to the character
+                        online_change_log <- ""
+                        for (o in online_change_log_split) {
+                            online_change_log <- paste(online_change_log, o, sep = "\n")
+                        }
+                        break
+                    }
+                }
+                ### Split the version number in YYYY.MM.DD
+                online_version_YYYYMMDDVV <- unlist(strsplit(online_version_number, ".", fixed = TRUE))
+                ### Compare with the local version
+                local_version_YYYYMMDDVV = unlist(strsplit(R_script_version, ".", fixed = TRUE))
+                ### Check the versions (from the Year to the Day)
+                # Check the year
+                if (as.numeric(local_version_YYYYMMDDVV[1]) < as.numeric(online_version_YYYYMMDDVV[1])) {
+                    update_available <- TRUE
+                }
+                # If the year is the same (update is FALSE), check the month
+                if (update_available == FALSE) {
+                    if ((as.numeric(local_version_YYYYMMDDVV[1]) == as.numeric(online_version_YYYYMMDDVV[1])) && (as.numeric(local_version_YYYYMMDDVV[2]) < as.numeric(online_version_YYYYMMDDVV[2]))) {
+                        update_available <- TRUE
+                    }
+                }
+                # If the month and the year are the same (update is FALSE), check the day
+                if (update_available == FALSE) {
+                    if ((as.numeric(local_version_YYYYMMDDVV[1]) == as.numeric(online_version_YYYYMMDDVV[1])) && (as.numeric(local_version_YYYYMMDDVV[2]) == as.numeric(online_version_YYYYMMDDVV[2])) && (as.numeric(local_version_YYYYMMDDVV[3]) < as.numeric(online_version_YYYYMMDDVV[3]))) {
+                        update_available <- TRUE
+                    }
+                }
+                # If the day and the month and the year are the same (update is FALSE), check the daily version
+                if (update_available == FALSE) {
+                    if ((as.numeric(local_version_YYYYMMDDVV[1]) == as.numeric(online_version_YYYYMMDDVV[1])) && (as.numeric(local_version_YYYYMMDDVV[2]) == as.numeric(online_version_YYYYMMDDVV[2])) && (as.numeric(local_version_YYYYMMDDVV[3]) == as.numeric(online_version_YYYYMMDDVV[3])) && (as.numeric(local_version_YYYYMMDDVV[4]) < as.numeric(online_version_YYYYMMDDVV[4]))) {
+                        update_available <- TRUE
+                    }
+                }
+                ### Return messages
+                if (is.null(online_version_number)) {
+                    # The version number could not be ckecked due to internet problems
+                    # Update the label
+                    check_for_updates_value <- paste("Version: ", R_script_version, "\nUpdates not checked:\nconnection problems", sep = "")
+                } else {
+                    if (update_available == TRUE) {
+                        # Update the label
+                        check_for_updates_value <- paste("Version: ", R_script_version, "\nUpdate available:\n", online_version_number, sep = "")
+                    } else {
+                        # Update the label
+                        check_for_updates_value <- paste("Version: ", R_script_version, "\nNo updates available", sep = "")
+                    }
+                }
+            }, silent = TRUE)
+        }
+        ### Something went wrong: library not installed, retrieving failed, errors in parsing the version number
+        if (is.null(online_version_number)) {
+            # Update the label
+            check_for_updates_value <- paste("Version: ", R_script_version, "\nUpdates not checked:\nconnection problems", sep = "")
         }
         # Escape the function
-        files_dumped <<- files_dumped
-        # Progress bar
-        setTkProgressBar(program_progress_bar, value = 1.00, title = NULL, label = "100 %")
-        close(program_progress_bar)
-        ### Messagebox
-        tkmessageBox(title = "Done!", message = "The classification has been performed and the files have been dumped!", icon = "info")
-    } else if (is.null(filepath_import) || RData_file_integrity == FALSE) {
-        classification_of_patients <- NULL
-        # Escape the function
-        classification_of_patients <<- classification_of_patients
-        ### Messagebox
-        tkmessageBox(title = "Something is wrong", message = "Either no proper RData files or spectra files are provided!", icon = "warning")
+        update_available <<- update_available
+        online_change_log <<- online_change_log
+        check_for_updates_value <<- check_for_updates_value
+        online_version_number <<- online_version_number
     }
-}
-
-##### Dump the output files
-ms_pixel_typer_data_dumper_function <- function() {
-    if (!is.null(classification_of_patients)) {
-        if (files_dumped == FALSE) {
-            cat("\nThe classification files will be now dumped!\n")
-        } else if (files_dumped == TRUE) {
-            tkmessageBox(title = "Duplicate files", message = "All the files have been already dumped and will be dumped again!", icon = "warning")
+    
+    ##### Download the updated file (from my GitHub page)
+    download_updates_function <- function() {
+        # Download updates only if there are updates available
+        if (update_available == TRUE) {
+            # Initialize the variable which says if the file has been downloaded successfully
+            file_downloaded <- FALSE
+            # Choose where to save the updated script
+            tkmessageBox(title = "Download folder", message = "Select where to save the updated script file", icon = "info")
+            download_folder <- tclvalue(tkchooseDirectory())
+            if (!nchar(download_folder)) {
+                # Get the output folder from the default working directory
+                download_folder <- getwd()
+            }
+            # Go to the working directory
+            setwd(download_folder)
+            tkmessageBox(message = paste("The updated script file will be downloaded in:\n\n", download_folder, sep = ""))
+            # Download the file
+            try({
+                download.file(url = github_R_url, destfile = paste(script_file_name, " (", online_version_number, ").R", sep = ""), method = "auto")
+                file_downloaded <- TRUE
+            }, silent = TRUE)
+            if (file_downloaded == TRUE) {
+                tkmessageBox(title = "Updated file downloaded!", message = paste("The updated script, named:\n\n", paste(script_file_name, " (", online_version_number, ").R", sep = ""), "\n\nhas been downloaded to:\n\n", download_folder, "\n\nClose everything, delete this file and run the script from the new file!", sep = ""), icon = "info")
+                tkmessageBox(title = "Changelog", message = paste("The updated script contains the following changes:\n", online_change_log, sep = ""), icon = "info")
+            } else {
+                tkmessageBox(title = "Connection problem", message = paste("The updated script file could not be downloaded due to internet connection problems!\n\nManually download the updated script file at:\n\n", github_R_url, sep = ""), icon = "warning")
+            }
+        } else {
+            tkmessageBox(title = "No update available", message = "NO UPDATES AVAILABLE!\n\nThe latest version is running!", icon = "info")
         }
-        ########## Dump the files
-        ##### Create a subfolder (CLASSIFICATION X)
+    }
+    
+    ##### Preprocessing window
+    preprocessing_window_function <- function() {
+        ##### Functions
+        # Transform the data
+        transform_data_choice <- function() {
+            # Ask for the algorithm
+            transform_data_algorithm_input <- select.list(c("Square root", "Natural logarithm", "Decimal logarithm", "Binary Logarithm", "None"), title = "Data transformation", multiple = FALSE, preselect = "None")
+            # Default and fix
+            if (transform_data_algorithm_input == "Square root") {
+                transform_data_algorithm <- "sqrt"
+            } else if (transform_data_algorithm_input == "Natural logarithm") {
+                transform_data_algorithm <- "log"
+            } else if (transform_data_algorithm_input == "Binary Logarithm") {
+                transform_data_algorithm <- "log2"
+            } else if (transform_data_algorithm_input == "Decimal logarithm") {
+                transform_data_algorithm <- "log10"
+            } else if (transform_data_algorithm_input == "" || transform_data_algorithm_input == "None") {
+                transform_data_algorithm <- NULL
+            }
+            # Set the value of the displaying label
+            if (!is.null(transform_data_algorithm)) {
+                transform_data_value <- paste0("YES", "\n( ", transform_data_algorithm_input, " )")
+            } else {
+                transform_data_value <- "None"
+            }
+            transform_data_value_label <- tklabel(preproc_window, text = transform_data_value, font = label_font, bg = "white", width = 20, height = 2)
+            tkgrid(transform_data_value_label, row = 3, column = 2, padx = c(5, 5), pady = c(5, 5))
+            # Escape the function
+            transform_data_algorithm <<- transform_data_algorithm
+            transform_data_value <<- transform_data_value
+        }
+        # Smoothing
+        smoothing_choice <- function() {
+            # Ask for the algorithm
+            smoothing_algorithm_input <- select.list(c("Savitzky-Golay","Moving Average", "None"), title = "Smoothing algorithm", multiple = FALSE, preselect = "SavitzkyGolay")
+            # Default and fix
+            if (smoothing_algorithm_input == "" || smoothing_algorithm_input == "Savitzky-Golay") {
+                smoothing_algorithm <- "SavitzkyGolay"
+            } else if (smoothing_algorithm_input == "Moving Average") {
+                smoothing_algorithm <- "MovingAverage"
+            } else if (smoothing_algorithm_input == "None") {
+                smoothing_algorithm <- NULL
+            }
+            # Strength
+            if (!is.null(smoothing_algorithm)) {
+                smoothing_strength <- select.list(c("medium", "strong", "stronger"), title = "Smoothing strength", multiple = FALSE, preselect = "medium")
+                if (smoothing_strength == "") {
+                    smoothing_strength <- "medium"
+                }
+            }
+            # Set the value of the displaying label
+            if (!is.null(smoothing_algorithm)) {
+                smoothing_value <- paste0("YES", "\n( ", smoothing_algorithm_input, ",\n" , smoothing_strength, " )")
+            } else {
+                smoothing_value <- "None"
+            }
+            smoothing_value_label <- tklabel(preproc_window, text = smoothing_value, font = label_font, bg = "white", width = 20, height = 3)
+            tkgrid(smoothing_value_label, row = 4, column = 2, padx = c(5, 5), pady = c(5, 5))
+            # Escape the function
+            smoothing_strength <<- smoothing_strength
+            smoothing_algorithm <<- smoothing_algorithm
+            smoothing_value <<- smoothing_value
+        }
+        # Baseline subtraction
+        baseline_subtraction_choice <- function() {
+            # Ask for the algorithm
+            baseline_subtraction_algorithm <- select.list(c("SNIP", "TopHat", "ConvexHull", "median", "None"), title = "Baseline subtraction algorithm", multiple = FALSE, preselect = "SNIP")
+            # Default
+            if (baseline_subtraction_algorithm == "") {
+                baseline_subtraction_algorithm <- "SNIP"
+                baseline_subtraction_algorithm_parameter <- 200
+            }
+            if (baseline_subtraction_algorithm == "None") {
+                baseline_subtraction_algorithm <- NULL
+            }
+            # SNIP
+            if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "SNIP") {
+                baseline_subtraction_algorithm_parameter <- tclvalue(baseline_subtraction_algorithm_parameter2)
+                baseline_subtraction_algorithm_parameter_value <- as.character(baseline_subtraction_algorithm_parameter)
+                baseline_subtraction_algorithm_parameter <- as.integer(baseline_subtraction_algorithm_parameter)
+            } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "TopHat") {
+                baseline_subtraction_algorithm_parameter <- tclvalue(baseline_subtraction_algorithm_parameter2)
+                baseline_subtraction_algorithm_parameter_value <- as.character(baseline_subtraction_algorithm_parameter)
+                baseline_subtraction_algorithm_parameter <- as.integer(baseline_subtraction_algorithm_parameter)
+            } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "median") {
+                baseline_subtraction_algorithm_parameter <- tclvalue(baseline_subtraction_algorithm_parameter2)
+                baseline_subtraction_algorithm_parameter_value <- as.character(baseline_subtraction_algorithm_parameter)
+                baseline_subtraction_algorithm_parameter <- as.integer(baseline_subtraction_algorithm_parameter)
+            }
+            # Set the value of the displaying label
+            if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "SNIP") {
+                baseline_subtraction_value <- paste0("YES", "\n( ", baseline_subtraction_algorithm, ",\nIterations: ", baseline_subtraction_algorithm_parameter, " )")
+            } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "TopHat") {
+                baseline_subtraction_value <- paste0("YES", "\n( ", baseline_subtraction_algorithm, ",\nHalf window size: ", baseline_subtraction_algorithm_parameter, " )")
+            } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "median") {
+                baseline_subtraction_value <- paste0("YES", "\n( ", baseline_subtraction_algorithm, ",\nHalf window size: ", baseline_subtraction_algorithm_parameter, " )")
+            } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "ConvexHull") {
+                baseline_subtraction_value <- paste0("YES", "\n( ", baseline_subtraction_algorithm, ")")
+            } else {
+                baseline_subtraction_value <- "None"
+            }
+            baseline_subtraction_value_label <- tklabel(preproc_window, text = baseline_subtraction_value, font = label_font, bg = "white", width = 20, height = 3)
+            tkgrid(baseline_subtraction_value_label, row = 5, column = 3, padx = c(5, 5), pady = c(5, 5))
+            # Escape the function
+            baseline_subtraction_algorithm_parameter <<- baseline_subtraction_algorithm_parameter
+            baseline_subtraction_algorithm <<- baseline_subtraction_algorithm
+            baseline_subtraction_value <<- baseline_subtraction_value
+        }
+        # Normalization
+        normalization_choice <- function() {
+            # Ask for the algorithm
+            normalization_algorithm <- select.list(c("TIC", "RMS", "PQN", "median", "None"), title = "Normalization algorithm", multiple = FALSE, preselect = "TIC")
+            if (normalization_algorithm == "") {
+                normalization_algorithm <- "TIC"
+            }
+            if (normalization_algorithm == "None") {
+                normalization_algorithm <- NULL
+            }
+            # TIC
+            if (!is.null(normalization_algorithm) && normalization_algorithm == "TIC") {
+                normalization_mass_range <- tclvalue(normalization_mass_range2)
+                normalization_mass_range_value <- as.character(normalization_mass_range)
+                if (normalization_mass_range != 0 && normalization_mass_range != "") {
+                    normalization_mass_range <- unlist(strsplit(normalization_mass_range, ","))
+                    normalization_mass_range <- as.numeric(normalization_mass_range)
+                } else if (normalization_mass_range == 0 || normalization_mass_range == "") {
+                    normalization_mass_range <- NULL
+                }
+            }
+            # Set the value of the displaying label
+            if (!is.null(normalization_algorithm) && normalization_algorithm != "TIC") {
+                normalization_value <- paste0("YES", "\n( ", normalization_algorithm, " )\n")
+            } else if (!is.null(normalization_algorithm) && normalization_algorithm == "TIC") {
+                if (!is.null(normalization_mass_range)) {
+                    normalization_value <- paste0("YES", "\n( ", normalization_algorithm, ",\nrange:\n", normalization_mass_range_value, " )")
+                } else {
+                    normalization_value <- paste0("YES", "\n( ", normalization_algorithm, " )")
+                }
+            } else {
+                normalization_value <- "None"
+            }
+            normalization_value_label <- tklabel(preproc_window, text = normalization_value, font = label_font, bg = "white", width = 20, height = 4)
+            tkgrid(normalization_value_label, row = 7, column = 3, padx = c(5, 5), pady = c(5, 5))
+            # Escape the function
+            normalization_mass_range <<- normalization_mass_range
+            normalization_algorithm <<- normalization_algorithm
+            normalization_value <<- normalization_value
+        }
+        # Spectral alignment
+        spectral_alignment_choice <- function() {
+            # Ask for the algorithm
+            spectral_alignment_algorithm <- select.list(c("cubic", "quadratic", "linear", "lowess", "None"), title = "Spectral alignment algorithm", multiple = FALSE, preselect = "cubic")
+            # Default
+            if (spectral_alignment_algorithm == "") {
+                spectral_alignment_algorithm <- "None"
+            }
+            if (spectral_alignment_algorithm == "None") {
+                spectral_alignment_algorithm <- NULL
+            }
+            ## Ask for the reference peaklist
+            if (!is.null(spectral_alignment_algorithm)) {
+                spectral_alignment_reference <- select.list(c("auto","average spectrum", "skyline spectrum"), title = "Spectral alignment reference", multiple = FALSE, preselect = "average spectrum")
+                if (spectral_alignment_reference == "") {
+                    spectral_alignment_reference <- "average spectrum"
+                }
+            } else {
+                spectral_alignment_reference <- NULL
+            }
+            # Set the value of the displaying label
+            if (!is.null(spectral_alignment_algorithm)) {
+                spectral_alignment_value <- paste0("YES", "\n( ", spectral_alignment_algorithm, ",\n", spectral_alignment_reference, " )")
+            } else {
+                spectral_alignment_value <- "None"
+            }
+            spectral_alignment_value_label <- tklabel(preproc_window, text = spectral_alignment_value, font = label_font, bg = "white", width = 20, height = 3)
+            tkgrid(spectral_alignment_value_label, row = 8, column = 2, padx = c(5, 5), pady = c(5, 5))
+            # Escape the function
+            spectral_alignment_algorithm <<- spectral_alignment_algorithm
+            spectral_alignment_reference <<- spectral_alignment_reference
+            spectral_alignment_value <<- spectral_alignment_value
+        }
+        # TOF mode
+        tof_mode_choice <- function() {
+            # Catch the value from the menu
+            tof_mode <- select.list(c("Linear", "Reflector"), title = "TOF mode")
+            # Default
+            if (tof_mode == "" || tof_mode == "Linear") {
+                tof_mode <- "linear"
+            }
+            if (tof_mode == "Reflector") {
+                tof_mode <- "reflector"
+            }
+            # Set the value of the displaying label
+            if (tof_mode == "linear") {
+                tof_mode_value <- "Linear"
+            } else if (tof_mode == "reflector") {
+                tof_mode_value <- "Reflector"
+            }
+            tof_mode_value_label <- tklabel(preproc_window, text = tof_mode_value, font = label_font, bg = "white", width = 20)
+            tkgrid(tof_mode_value_label, row = 2, column = 3, padx = c(5, 5), pady = c(5, 5))
+            # Escape the function
+            tof_mode <<- tof_mode
+            tof_mode_value <<- tof_mode_value
+        }
+        # Commit preprocessing
+        commit_preprocessing_function <- function() {
+            # Get the values (they are filled with the default anyway)
+            # Mass range
+            mass_range <- tclvalue(mass_range2)
+            mass_range <- as.numeric(unlist(strsplit(mass_range, ",")))
+            mass_range_value <- as.character(paste(mass_range[1], ",", mass_range[2]))
+            # Preprocessing
+            preprocess_spectra_in_packages_of <- tclvalue(preprocess_spectra_in_packages_of2)
+            preprocess_spectra_in_packages_of <- as.integer(preprocess_spectra_in_packages_of)
+            preprocess_spectra_in_packages_of_value <- as.character(preprocess_spectra_in_packages_of)
+            # Escape the function
+            mass_range <<- mass_range
+            mass_range_value <<- mass_range_value
+            preprocess_spectra_in_packages_of <<- preprocess_spectra_in_packages_of
+            preprocessing_parameters <<- list(mass_range = mass_range, transformation_algorithm = transform_data_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_strength = smoothing_strength, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range, preprocess_spectra_in_packages_of = preprocess_spectra_in_packages_of, spectral_alignment_algorithm = spectral_alignment_algorithm, spectral_alignment_reference = spectral_alignment_reference)
+            # Destroy the window upon committing
+            tkdestroy(preproc_window)
+        }
+        ##### List of variables, whose values are taken from the entries in the GUI (create new variables for the sub window, that will replace the ones in the global environment, only if the default are changed)
+        mass_range2 <- tclVar("")
+        preprocess_spectra_in_packages_of2 <- tclVar("")
+        baseline_subtraction_algorithm_parameter2 <- tclVar("")
+        normalization_mass_range2 <- tclVar("")
+        ##### Window
+        preproc_window <- tktoplevel(bg = "white")
+        tkwm.resizable(preproc_window, FALSE, FALSE)
+        tktitle(preproc_window) <- "Spectral preprocessing parameters"
+        #tkpack.propagate(preproc_window, FALSE)
+        # Mass range
+        mass_range_label <- tklabel(preproc_window, text = "Mass range", font = label_font, bg = "white", width = 20)
+        mass_range_entry <- tkentry(preproc_window, textvariable = mass_range2, font = entry_font, bg = "white", width = 20, justify = "center")
+        tkinsert(mass_range_entry, "end", as.character(paste(mass_range[1],",",mass_range[2])))
+        # Preprocessing (in packages of)
+        preprocess_spectra_in_packages_of_label <- tklabel(preproc_window, text="Preprocess spectra\nin packages of", font = label_font, bg = "white", width = 20)
+        preprocess_spectra_in_packages_of_entry <- tkentry(preproc_window, textvariable = preprocess_spectra_in_packages_of2, font = entry_font, bg = "white", width = 10, justify = "center")
+        tkinsert(preprocess_spectra_in_packages_of_entry, "end", as.character(preprocess_spectra_in_packages_of))
+        # Tof mode
+        tof_mode_label <- tklabel(preproc_window, text="Select the TOF mode", font = label_font, bg = "white", width = 20)
+        tof_mode_entry <- tkbutton(preproc_window, text="Choose the TOF mode", command = tof_mode_choice, font = button_font, bg = "white", width = 20)
+        # Transform the data
+        transform_data_button <- tkbutton(preproc_window, text="Data transformation", command = transform_data_choice, font = button_font, bg = "white", width = 20)
+        # Smoothing
+        smoothing_button <- tkbutton(preproc_window, text="Smoothing", command = smoothing_choice, font = button_font, bg = "white", width = 20)
+        # Baseline subtraction
+        baseline_subtraction_button <- tkbutton(preproc_window, text="Baseline subtraction", command = baseline_subtraction_choice, font = button_font, bg = "white", width = 20)
+        baseline_subtraction_algorithm_parameter_entry <- tkentry(preproc_window, textvariable = baseline_subtraction_algorithm_parameter2, font = entry_font, bg = "white", width = 10, justify = "center")
+        tkinsert(baseline_subtraction_algorithm_parameter_entry, "end", as.character(baseline_subtraction_algorithm_parameter))
+        # Normalization
+        normalization_button <- tkbutton(preproc_window, text="Normalization", command = normalization_choice, font = button_font, bg = "white", width = 20)
+        normalization_mass_range_entry <- tkentry(preproc_window, textvariable = normalization_mass_range2, font = entry_font, bg = "white", width = 20, justify = "center")
+        tkinsert(normalization_mass_range_entry, "end", as.character(normalization_mass_range))
+        # Spectral alignment
+        spectral_alignment_button <- tkbutton(preproc_window, text="Align spectra", command = spectral_alignment_choice, font = button_font, bg = "white", width = 20)
+        # Commit preprocessing
+        commit_preprocessing_button <- tkbutton(preproc_window, text="Commit preprocessing", command = commit_preprocessing_function, font = button_font, bg = "white", width = 20)
+        ##### Displaying labels
+        tof_mode_value_label <- tklabel(preproc_window, text = tof_mode_value, font = label_font, bg = "white", width = 20)
+        transform_data_value_label <- tklabel(preproc_window, text = transform_data_value, font = label_font, bg = "white", width = 20, height = 2)
+        smoothing_value_label <- tklabel(preproc_window, text = smoothing_value, font = label_font, bg = "white", width = 20, height = 3)
+        baseline_subtraction_value_label <- tklabel(preproc_window, text = baseline_subtraction_value, font = label_font, bg = "white", width = 20, height = 3)
+        normalization_value_label <- tklabel(preproc_window, text = normalization_value, font = label_font, bg = "white", width = 20, height = 4)
+        spectral_alignment_value_label <- tklabel(preproc_window, text = spectral_alignment_value, font = label_font, bg = "white", width = 20, height = 3)
+        #### Geometry manager
+        tkgrid(mass_range_label, row = 1, column = 1, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(mass_range_entry, row = 1, column = 2, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(tof_mode_label, row = 2, column = 1, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(tof_mode_entry, row = 2, column = 2, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(tof_mode_value_label, row = 2, column = 3, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(transform_data_button, row = 3, column = 1, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(transform_data_value_label, row = 3, column = 2, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(smoothing_button, row = 4, column = 1, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(smoothing_value_label, row = 4, column = 2, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(baseline_subtraction_button, row = 5, column = 1, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(baseline_subtraction_algorithm_parameter_entry, row = 5, column = 2, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(baseline_subtraction_value_label, row = 5, column = 3, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(normalization_button, row = 7, column = 1, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(normalization_mass_range_entry, row = 7, column = 2, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(normalization_value_label, row = 7, column = 3, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(preprocess_spectra_in_packages_of_label, row = 9, column = 1, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(preprocess_spectra_in_packages_of_entry, row = 9, column = 2, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(spectral_alignment_button, row = 8, column = 1, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(spectral_alignment_value_label, row = 8, column = 2, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(commit_preprocessing_button, row = 10, column = 1, columnspan = 3, padx = c(5, 5), pady = c(5, 5))
+    }
+    
+    ##### File type export MATRIX
+    file_type_export_matrix_choice <- function() {
+        # Catch the value from the menu
+        file_type_export_matrix <- select.list(c("csv","xlsx","xls"), title = "File type export", multiple = FALSE, preselect = "csv")
+        # Default
+        if (file_type_export_matrix == "") {
+            file_type_export_matrix <- "csv"
+        }
+        if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
+            install_and_load_required_packages("XLConnect")
+        }
+        # Escape the function
+        file_type_export_matrix <<- file_type_export_matrix
+        # Set the value of the displaying label
+        file_type_export_matrix_value_label <- tklabel(window, text = file_type_export_matrix, font = label_font, bg = "white", width = 20)
+        tkgrid(file_type_export_matrix_value_label, row = 6, column = 2)
+    }
+    
+    ##### File type export IMAGES
+    file_type_export_images_choice <- function() {
+        # Catch the value from the menu
+        file_type_export_images <- select.list(c("png","jpg","tiff"), title = "Image type export", multiple = FALSE, preselect = "png")
+        # Default
+        if (file_type_export_images == "") {
+            file_type_export_images <- "png"
+        }
+        # Escape the function
+        file_type_export_images <<- file_type_export_images
+        # Set the value of the displaying label
+        file_type_export_images_value_label <- tklabel(window, text = file_type_export_images, font = label_font, bg = "white", width = 20)
+        tkgrid(file_type_export_images_value_label, row = 6, column = 4)
+    }
+    
+    ##### Classification mode choice
+    classification_mode_choice <- function() {
+        # Catch the value from the menu
+        classification_mode <- select.list(c("pixel", "profile"), title = "Classification mode", multiple = TRUE, preselect = "pixel")
+        # Default
+        if (length(classification_mode) == 1 && classification_mode == "") {
+            classification_mode <- "pixel"
+            classification_mode_value <- "pixel"
+        }
+        # Choose the pixel grouping
+        if ("pixel" %in% classification_mode) {
+            ## Choose the pixel grouping
+            pixel_grouping <- select.list(c("single", "hca", "moving window average"), title = "Pixel grouping", preselect = "single")
+            if (pixel_grouping == "") {
+                pixel_grouping <- "single"
+            }
+            # Escape the function
+            pixel_grouping <<- pixel_grouping
+            if (pixel_grouping == "moving window average") {
+                moving_window_size <- as.integer(select.list(c(2, 3, 4, 5, 10, 15, 20, 25, 50, 100, 200, 300, 500, 1000), title = "Moving window size", preselect = 5))
+                if (moving_window_size == "") {
+                    moving_window_size <- 5
+                }
+                # Escape the function
+                moving_window_size <<- moving_window_size
+            } else if (pixel_grouping == "hca") {
+                number_of_hca_nodes <- as.integer(select.list(c(2, 3, 4, 5, 10, 15, 20, 25, 50, 100, 200, 300, 500, 1000), title = "Number of HC nodes", preselect = 4))
+                if (number_of_hca_nodes == "") {
+                    number_of_hca_nodes <- 4
+                }
+                # Escape the function
+                number_of_hca_nodes <<- number_of_hca_nodes
+            }
+        }
+        # Fix the displaying value
+        if ("profile" %in% classification_mode && "pixel" %in% classification_mode) {
+            classification_mode_value <- "pixel + profile"
+        } else if (classification_mode == "profile") {
+            classification_mode_value <- "   profile   "
+        } else if (classification_mode == "pixel") {
+            classification_mode_value <- "  pixel  "
+        }
+        # Escape the function
+        classification_mode <<- classification_mode
+        classification_mode_value <<- classification_mode_value
+        # Set the value of the displaying label
+        classification_mode_value_label <- tklabel(window, text = classification_mode_value, font = label_font, bg = "white", width = 20)
+        tkgrid(classification_mode_value_label, row = 5, column = 2)
+    }
+    
+    ##### Samples
+    select_samples_function <- function() {
+        # Set the working directory
+        setwd(getwd())
+        ########## Prompt if a folder has to be selected or a single file
+        # Catch the value from the popping out menu
+        spectra_input_type <- select.list(c("file","folder"), title = "Folder or file?", multiple = FALSE, preselect = "file")
+        # Default
+        if (spectra_input_type == "") {
+            spectra_input_type <- "file"
+        }
+        # Folder
+        if (spectra_input_type == "folder") {
+            filepath_import_select <- tkmessageBox(title = "Samples", message = "Select the folder for the spectra (stored as imzML files) to be imported: each imzML file should correspond to a patient's spectral dataset, and the imzML files should be put in folders corresponding to the different classes of samples", icon = "info")
+            filepath_import <- tclvalue(tkchooseDirectory())
+            if (!nchar(filepath_import)) {
+                tkmessageBox(message = "No folder selected")
+                filepath_import <- NULL
+            } else {
+                tkmessageBox(message = paste("The sample spectra will be read from:\n\n", filepath_import))
+            }
+        } else if (spectra_input_type == "file") {
+            # File
+            filepath_import_select <- tkmessageBox(title = "Sample file", message = "Select the imzML file for the spectra to be imported: the imzML file should correspond to a patient's spectral dataset", icon = "info")
+            filepath_import <- tclvalue(tkgetOpenFile(filetypes = "{{imzML files} {.imzML .imzml}}"))
+            if (!nchar(filepath_import)) {
+                tkmessageBox(message = "No file selected")
+                filepath_import <- NULL
+            } else {
+                tkmessageBox(message = paste("The sample spectra will be read from:\n\n", filepath_import))
+            }
+        }
+        # Set the value for displaying purposes
+        filepath_import_value <- filepath_import
+        # Exit the function and put the variable into the R workspace
+        filepath_import <<- filepath_import
+    }
+    
+    ##### RData file containing the models
+    select_RData_file_function <- function() {
+        # Set the working directory
+        setwd(getwd())
+        filepath_R_import_select <- tkmessageBox(title = "RData file", message = "Select the RData file containing the model list", icon = "info")
+        filepath_R <- tclvalue(tkgetOpenFile(filetypes = "{{RData files} {.RData}}"))
+        if (!nchar(filepath_R)) {
+            tkmessageBox(message = "No RData file selected")
+            filepath_R <- NULL
+            RData_file_integrity <- FALSE
+            RData_file_integrity_value <- "NO RDATA FILE\nSELECTED"
+        } else {
+            tkmessageBox(message = paste("The model list will be read from:\n\n", filepath_R))
+            # Define the progressbar
+            RData_progress_bar <- tkProgressBar(title = "RData integrity verification", label = "", min = 0, max = 1, initial = 0, width = 300)
+            # Retrieve the content of the RData workspace
+            setTkProgressBar(RData_progress_bar, value = 0, title = NULL, label = "0 %")
+            RData_file_integrity <- FALSE
+            RData_file_integrity_value <- "INTEGRITY TEST\nFAILED"
+            try(RData_variables <- R_workspace_data_retriever(filepath_R)$variable_list)
+            setTkProgressBar(RData_progress_bar, value = 0.50, title = NULL, label = "50 %")
+            # Check for integrity of the RData file
+            try({
+                if (all(c("model_list", "model_performance_parameter_list") %in% RData_variables)) {
+                    RData_file_integrity <- TRUE
+                    RData_file_integrity_value <- "INTEGRITY TEST\nSUCCEDED"
+                }
+            })
+            setTkProgressBar(RData_progress_bar, value = 1, title = NULL, label = "100 %")
+            close(RData_progress_bar)
+        }
+        RData_file_integrity_value_label <- tklabel(window, text = RData_file_integrity_value, font = label_font, bg = "white", width = 20)
+        tkgrid(RData_file_integrity_value_label, row = 5, column = 4)
+        # Exit the function and put the variable into the R workspace
+        filepath_R <<- filepath_R
+        RData_file_integrity <<- RData_file_integrity
+        RData_file_integrity_value <<- RData_file_integrity_value
+    }
+    
+    ##### Output
+    browse_output_function <- function() {
+        output_folder <- tclvalue(tkchooseDirectory())
+        if (!nchar(output_folder)) {
+            # Get the output folder from the default working directory
+            output_folder <- getwd()
+        }
+        tkmessageBox(message = paste("Every file will be saved in:\n\n", output_folder))
+        setwd(output_folder)
+        # Exit the function and put the variable into the R workspace
+        output_folder <<- output_folder
+    }
+    
+    ##### Exit
+    end_session_function <- function () {
+        q(save = "no")
+    }
+    
+    ##### Peak picking algorithm
+    peak_picking_algorithm_choice <- function() {
+        # Catch the value from the menu
+        peak_picking_algorithm <- select.list(c("MAD", "SuperSmoother"), title = "Peak picking algorithm", multiple = FALSE, preselect = "MAD")
+        # Default
+        if (peak_picking_algorithm == "") {
+            peak_picking_algorithm <- "MAD"
+        }
+        # Set the value of the displaying label
+        peak_picking_algorithm_value <- peak_picking_algorithm
+        if (peak_picking_algorithm_value == "MAD") {
+            peak_picking_algorithm_value <- "Median\nAbsolute Deviation"
+        } else if (peak_picking_algorithm_value == "SuperSmoother") {
+            peak_picking_algorithm_value <- "Super Smoother"
+        }
+        peak_picking_algorithm_value_label <- tklabel(window, text = peak_picking_algorithm_value, font = label_font, bg = "white", width = 20, height = 2)
+        tkgrid(peak_picking_algorithm_value_label, row = 2, column = 2)
+        # Escape the function
+        peak_picking_algorithm <<- peak_picking_algorithm
+        peak_picking_algorithm_value <<- peak_picking_algorithm_value
+    }
+    
+    ##### Peaks deisotoping or enveloping
+    peak_deisotoping_enveloping_choice <- function() {
+        # Catch the value from the menu
+        peak_deisotoping_enveloping <- select.list(c("Peak Deisotoping","Peak Enveloping", "None"), title = "Peak Deisotoping/Enveloping", multiple = FALSE, preselect = "Peak Deisotoping")
+        # Default
+        if (peak_deisotoping_enveloping == "") {
+            peak_deisotoping_enveloping <- "Peak Deisotoping"
+        }
+        if (peak_deisotoping_enveloping == "Peak Deisotoping") {
+            peak_deisotoping <- TRUE
+            peak_enveloping <- FALSE
+        } else if (peak_deisotoping_enveloping == "Peak Enveloping") {
+            peak_deisotoping <- FALSE
+            peak_enveloping <- TRUE
+        } else if (peak_deisotoping_enveloping == "None") {
+            peak_deisotoping <- FALSE
+            peak_enveloping <- FALSE
+        }
+        # Set the value of the displaying label
+        peak_deisotoping_enveloping_value <- peak_deisotoping_enveloping
+        peak_deisotoping_enveloping_value_label <- tklabel(window, text = peak_deisotoping_enveloping_value, font = label_font, bg = "white", width = 20)
+        tkgrid(peak_deisotoping_enveloping_value_label, row = 2, column = 4, padx = c(10, 10), pady = c(10, 10))
+        # Escape the function
+        peak_deisotoping <<- peak_deisotoping
+        peak_enveloping <<- peak_enveloping
+        peak_deisotoping_enveloping_value <<- peak_deisotoping_enveloping_value
+    }
+    
+    ##### Decision method ensemble
+    decision_method_ensemble_choice <- function() {
+        # Catch the value from the menu
+        decision_method_ensemble <- select.list(c("majority"), title = "Decision method", multiple = FALSE, preselect = "majority")
+        # Default
+        if (decision_method_ensemble == "") {
+            decision_method_ensemble <- "majority"
+        }
+        # Vote weights
+        if (decision_method_ensemble == "majority") {
+            # Catch the value from the menu
+            vote_weights_ensemble <- select.list(c("equal", "class assignment probabilities", "bayesian probabilities"), title = "Vote weights", multiple = FALSE, preselect = "equal")
+            # Default
+            if (vote_weights_ensemble == "") {
+                vote_weights_ensemble <- "equal"
+            }
+            # Value
+            vote_weights_ensemble_value <- vote_weights_ensemble
+            if (vote_weights_ensemble_value == "class assignment probabilities") {
+                vote_weights_ensemble_value <- "class probs"
+            } else if (vote_weights_ensemble_value == "bayesian probabilities") {
+                vote_weights_ensemble_value <- "bayesian probs"
+            }
+            decision_method_ensemble_value <- paste0(decision_method_ensemble, "\n(", vote_weights_ensemble_value, ")")
+        }
+        # Value label
+        decision_method_ensemble_value_label <- tklabel(window, text = decision_method_ensemble_value, font = label_font, bg = "white", width = 20, height = 2)
+        tkgrid(decision_method_ensemble_value_label, row = 3, column = 3)
+        # Escape the function
+        vote_weights_ensemble <<- vote_weights_ensemble
+        decision_method_ensemble <<- decision_method_ensemble
+        decision_method_ensemble_value <<- decision_method_ensemble_value
+    }
+    
+    ##### Multicore processing
+    allow_parallelization_choice <- function() {
+        ##### Messagebox
+        tkmessageBox(title = "Parallel processing is resource hungry", message = "Parallel processing is resource hungry.\nBy activating it, the computation becomes faster, but the program will eat a lot of RAM, possibly causing your computer to freeze. If you want to play safe, do not enable it.", icon = "warning")
+        # Catch the value from the menu
+        allow_parallelization <- select.list(c("YES","NO"), title = "Parallelization", multiple = FALSE, preselect = "NO")
+        # Default
+        if (allow_parallelization == "YES") {
+            allow_parallelization <- TRUE
+        }
+        if (allow_parallelization == "NO" || allow_parallelization == "") {
+            allow_parallelization <- FALSE
+        }
+        # Set the value of the displaying label
+        if (allow_parallelization == TRUE) {
+            allow_parallelization_value <- "YES"
+        } else {
+            allow_parallelization_value <- "  NO  "
+        }
+        allow_parallelization_value_label <- tklabel(window, text = allow_parallelization_value, font = label_font, bg = "white", width = 20)
+        tkgrid(allow_parallelization_value_label, row = 4, column = 2)
+        # Escape the function
+        allow_parallelization <<- allow_parallelization
+        allow_parallelization_value <<- allow_parallelization_value
+    }
+    
+    ##### Run the Peaklist Export function
+    run_ms_pixel_typer_function <- function() {
         ### Go to the working directory
         setwd(output_folder)
-        ##### Automatically create a subfolder with all the results
-        ## Check if such subfolder exists
-        list_of_directories <- list.dirs(output_folder, full.names = FALSE, recursive = FALSE)
-        ## Check the presence of a CLASSIFICATION folder
-        CLASSIFICATION_folder_presence <- FALSE
-        if (length(list_of_directories) > 0) {
-            for (dr in 1:length(list_of_directories)) {
-                if (length(grep("CLASSIFICATION", list_of_directories[dr], fixed = TRUE)) > 0) {
-                    CLASSIFICATION_folder_presence <- TRUE
+        # Initialize the file_dumped variable
+        files_dumped <- FALSE
+        # Escape the function
+        files_dumped <<- files_dumped
+        ######## Run only if all the elements needed are there
+        if (!is.null(filepath_import) && RData_file_integrity == TRUE) {
+            # Choose the legends to plot
+            plot_legends <- select.list(c("sample name", "legend", "plot name"), multiple = TRUE, preselect = "legend", title = "Legend to plot")
+            # Progress bar
+            program_progress_bar <- tkProgressBar(title = NULL, label = "", min = 0, max = 1, initial = 0, width = 300)
+            setTkProgressBar(program_progress_bar, value = 0, title = NULL, label = "0 %")
+            setTkProgressBar(program_progress_bar, value = 0.25, title = "Performing classification...", label = "25 %")
+            ########## Run the classification function
+            classification_of_patients <- spectral_classification(spectra_path = filepath_import, filepath_R = filepath_R, model_list = NULL, model_performance_parameter_list = NULL, classification_mode = classification_mode, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = peak_deisotoping, preprocessing_parameters = preprocessing_parameters, tof_mode = tof_mode, allow_parallelization = allow_parallelization, decision_method_ensemble = decision_method_ensemble, vote_weights_ensemble = vote_weights_ensemble, pixel_grouping = pixel_grouping, moving_window_size = moving_window_size, number_of_hca_nodes = number_of_hca_nodes, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 50, iterations_with_no_change_GA = 5, seed = 12345, plot_figures = TRUE, plot_graphs = TRUE, plot_legends = plot_legends)
+            # Escape the function
+            classification_of_patients <<- classification_of_patients
+            setTkProgressBar(program_progress_bar, value = 0.75, title = "Saving files...", label = "75 %")
+            if (files_dumped == FALSE) {
+                # Dump the files
+                ms_pixel_typer_data_dumper_function()
+                files_dumped <- TRUE
+            }
+            # Escape the function
+            files_dumped <<- files_dumped
+            # Progress bar
+            setTkProgressBar(program_progress_bar, value = 1.00, title = NULL, label = "100 %")
+            close(program_progress_bar)
+            ### Messagebox
+            tkmessageBox(title = "Done!", message = "The classification has been performed and the files have been dumped!", icon = "info")
+        } else if (is.null(filepath_import) || RData_file_integrity == FALSE) {
+            classification_of_patients <- NULL
+            # Escape the function
+            classification_of_patients <<- classification_of_patients
+            ### Messagebox
+            tkmessageBox(title = "Something is wrong", message = "Either no proper RData files or spectra files are provided!", icon = "warning")
+        }
+    }
+    
+    ##### Dump the output files
+    ms_pixel_typer_data_dumper_function <- function() {
+        if (!is.null(classification_of_patients)) {
+            if (files_dumped == FALSE) {
+                cat("\nThe classification files will be now dumped!\n")
+            } else if (files_dumped == TRUE) {
+                tkmessageBox(title = "Duplicate files", message = "All the files have been already dumped and will be dumped again!", icon = "warning")
+            }
+            ########## Dump the files
+            ##### Create a subfolder (CLASSIFICATION X)
+            ### Go to the working directory
+            setwd(output_folder)
+            ##### Automatically create a subfolder with all the results
+            ## Check if such subfolder exists
+            list_of_directories <- list.dirs(output_folder, full.names = FALSE, recursive = FALSE)
+            ## Check the presence of a CLASSIFICATION folder
+            CLASSIFICATION_folder_presence <- FALSE
+            if (length(list_of_directories) > 0) {
+                for (dr in 1:length(list_of_directories)) {
+                    if (length(grep("CLASSIFICATION", list_of_directories[dr], fixed = TRUE)) > 0) {
+                        CLASSIFICATION_folder_presence <- TRUE
+                    }
                 }
             }
-        }
-        ## If it present...
-        if (isTRUE(CLASSIFICATION_folder_presence)) {
-            ## Extract the number after the STATISTICS
-            # Number for the newly created folder
-            CLASSIFICATION_new_folder_number <- 0
-            # List of already present numbers
-            CLASSIFICATION_present_folder_numbers <- integer()
-            # For each folder present...
-            for (dr in 1:length(list_of_directories)) {
-                # If it is named CLASSIFICATION
-                if (length(grep("CLASSIFICATION", list_of_directories[dr], fixed = TRUE)) > 0) {
-                    # Split the name
-                    CLASSIFICATION_present_folder_split <- unlist(strsplit(list_of_directories[dr], "CLASSIFICATION"))
-                    # Add the number to the list of CLASSIFICATION numbers (if it is NA it means that what was following the CLASSIFICATION was not a number)
+            ## If it present...
+            if (isTRUE(CLASSIFICATION_folder_presence)) {
+                ## Extract the number after the STATISTICS
+                # Number for the newly created folder
+                CLASSIFICATION_new_folder_number <- 0
+                # List of already present numbers
+                CLASSIFICATION_present_folder_numbers <- integer()
+                # For each folder present...
+                for (dr in 1:length(list_of_directories)) {
+                    # If it is named CLASSIFICATION
+                    if (length(grep("CLASSIFICATION", list_of_directories[dr], fixed = TRUE)) > 0) {
+                        # Split the name
+                        CLASSIFICATION_present_folder_split <- unlist(strsplit(list_of_directories[dr], "CLASSIFICATION"))
+                        # Add the number to the list of CLASSIFICATION numbers (if it is NA it means that what was following the CLASSIFICATION was not a number)
+                        try({
+                            if (!is.na(as.integer(CLASSIFICATION_present_folder_split[2]))) {
+                                CLASSIFICATION_present_folder_numbers <- append(CLASSIFICATION_present_folder_numbers, as.integer(CLASSIFICATION_present_folder_split[2]))
+                            } else {
+                                CLASSIFICATION_present_folder_numbers <- append(CLASSIFICATION_present_folder_numbers, as.integer(0))
+                            }
+                        }, silent = TRUE)
+                    }
+                }
+                # Sort the STATISTICS folder numbers
+                try(CLASSIFICATION_present_folder_numbers <- sort(CLASSIFICATION_present_folder_numbers))
+                # The new folder number will be the greater + 1
+                try(CLASSIFICATION_new_folder_number <- CLASSIFICATION_present_folder_numbers[length(CLASSIFICATION_present_folder_numbers)] + 1)
+                # Generate the new subfolder
+                subfolder <- file.path(output_folder, paste("CLASSIFICATION", CLASSIFICATION_new_folder_number))
+                # Create the subfolder
+                dir.create(subfolder)
+            } else {
+                # If it not present...
+                # Create the folder where to dump the files and go to it...
+                subfolder <- file.path(output_folder, paste("CLASSIFICATION", "1"))
+                # Create the subfolder
+                dir.create(subfolder)
+            }
+            # Go to the new working directory
+            setwd(subfolder)
+            ##### Dump the files
+            # Determine the number of patients, to create subfolders (try with the msi list, if it is still zero because only the profile has been classified, use the profile list)
+            number_of_patients <- length(classification_of_patients$final_result_matrix_msi_list)
+            if (number_of_patients == 0) {
+                number_of_patients <- length(classification_of_patients$final_result_matrix_profile_list)
+            }
+            ##### For each patient...
+            for (p in 1:number_of_patients) {
+                # Retrieve the patient name
+                if (length(classification_of_patients$final_result_matrix_msi_list) > 0) {
+                    patient_name <- names(classification_of_patients$final_result_matrix_msi_list)[[p]]
+                } else {
+                    patient_name <- NULL
+                }
+                if (is.null(patient_name)) {
+                    if (length(classification_of_patients$final_result_matrix_profile_list) > 0) {
+                        patient_name <- names(classification_of_patients$final_result_matrix_profile_list)[[p]]
+                    } else {
+                        patient_name <- NULL
+                    }
+                }
+                if (is.null(patient_name)) {
+                    patient_name <- p
+                }
+                # Create the subfolder and go to it
+                subfolder_patient <- file.path(subfolder, patient_name)
+                dir.create(subfolder_patient)
+                setwd(subfolder_patient)
+                ### Dump the files
+                ## MSI classification matrix
+                if (file_type_export_matrix == "csv") {
+                    try(write.csv(classification_of_patients$final_result_matrix_msi_list[[p]], file = paste0("MSI classification matrix", ".", file_type_export_matrix)), silent = TRUE)
+                } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
                     try({
-                        if (!is.na(as.integer(CLASSIFICATION_present_folder_split[2]))) {
-                            CLASSIFICATION_present_folder_numbers <- append(CLASSIFICATION_present_folder_numbers, as.integer(CLASSIFICATION_present_folder_split[2]))
-                        } else {
-                            CLASSIFICATION_present_folder_numbers <- append(CLASSIFICATION_present_folder_numbers, as.integer(0))
+                        writeWorksheetToFile(file = paste0("MSI classification matrix", ".", file_type_export_matrix), data = classification_of_patients$final_result_matrix_msi_list[[p]], sheet = "MSI classification", clearSheets = TRUE)
+                    }, silent = TRUE)
+                }
+                ## MS profile matrix
+                if (file_type_export_matrix == "csv") {
+                    try(write.csv(classification_of_patients$final_result_matrix_profile_list[[p]], file = paste0("MS profile classification matrix", ".", file_type_export_matrix)), silent = TRUE)
+                } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
+                    try({
+                        writeWorksheetToFile(file = paste0("MS profile classification matrix", ".", file_type_export_matrix), data = classification_of_patients$final_result_matrix_profile_list[[p]], sheet = "MS profile classification", clearSheets = TRUE)
+                    }, silent = TRUE)
+                }
+                ## MSI pixel classification
+                # PNG
+                if (file_type_export_images == "png") {
+                    try({
+                        for (i in 1:length(classification_of_patients$classification_ms_images_list[[p]])) {
+                            # Retrieve the model name
+                            model_name <- names(classification_of_patients$classification_ms_images_list[[p]])[i]
+                            # Save the plot
+                            png(filename = paste("Pixel-by-pixel classification ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
+                            replayPlot(classification_of_patients$classification_ms_images_list[[p]][[i]])
+                            dev.off()
+                        }
+                    }, silent = TRUE)
+                } else if (file_type_export_images == "tiff") {
+                    # TIFF
+                    try({
+                        for (i in 1:length(classification_of_patients$classification_ms_images_list[[p]])) {
+                            # Retrieve the model name
+                            model_name <- names(classification_of_patients$classification_ms_images_list[[p]])[i]
+                            # Save the plot
+                            tiff(filename = paste("Pixel-by-pixel classification ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
+                            replayPlot(classification_of_patients$classification_ms_images_list[[p]][[i]])
+                            dev.off()
+                        }
+                    }, silent = TRUE)
+                } else if (file_type_export_images == "jpg" || file_type_export_images == "jpeg") {
+                    # JPEG
+                    try({
+                        for (i in 1:length(classification_of_patients$classification_ms_images_list[[p]])) {
+                            # Retrieve the model name
+                            model_name <- names(classification_of_patients$classification_ms_images_list[[p]])[i]
+                            # Save the plot
+                            jpeg(filename = paste("Pixel-by-pixel classification ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150, quality = 100)
+                            replayPlot(classification_of_patients$classification_ms_images_list[[p]][[i]])
+                            dev.off()
+                        }
+                    }, silent = TRUE)
+                }
+                ## Ensemble classification MSI matrix
+                if (file_type_export_matrix == "csv") {
+                    try(write.csv(classification_of_patients$classification_ensemble_matrix_msi_all[[p]], file = paste0("Ensemble MSI classification matrix", ".", file_type_export_matrix)), silent = TRUE)
+                } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
+                    try({
+                        writeWorksheetToFile(file = paste0("Ensemble MSI classification matrix", ".", file_type_export_matrix), data = classification_of_patients$classification_ensemble_matrix_msi_all[[p]], sheet = "Ensemble MSI classification", clearSheets = TRUE)
+                    }, silent = TRUE)
+                }
+                ## Ensemble classification profile matrix
+                if (file_type_export_matrix == "csv") {
+                    try(write.csv(classification_of_patients$classification_ensemble_matrix_profile_all[[p]], file = paste0("Ensemble MS profile classification matrix", ".", file_type_export_matrix)), silent = TRUE)
+                } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
+                    try({
+                        writeWorksheetToFile(file = paste0("Ensemble MS profile classification matrix", ".", file_type_export_matrix), data = classification_of_patients$classification_ensemble_matrix_profile_all[[p]], sheet = "Ensemble MS classification", clearSheets = TRUE)
+                    }, silent = TRUE)
+                }
+                ## Ensemble MSI pixel classification
+                # PNG
+                if (file_type_export_images == "png") {
+                    try({
+                        png(filename = paste("Ensemble Pixel-by-pixel classification", ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
+                        replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]])
+                        dev.off()
+                    }, silent = TRUE)
+                } else if (file_type_export_images == "tiff") {
+                    # TIFF
+                    try({
+                        tiff(filename = paste("Ensemble Pixel-by-pixel classification", ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
+                        replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]])
+                        dev.off()
+                    }, silent = TRUE)
+                } else if (file_type_export_images == "jpg" || file_type_export_images == "jpeg") {
+                    # JPEG
+                    try({
+                        jpeg(filename = paste("Ensemble Pixel-by-pixel classification", ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150, quality = 100)
+                        replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]])
+                        dev.off()
+                    }, silent = TRUE)
+                }
+                ## Average spectrum with bars
+                # PNG
+                if (file_type_export_images == "png") {
+                    try({
+                        for (i in 1:length(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])) {
+                            # Retrieve the model name
+                            model_name <- names(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])[i]
+                            # Save the plot
+                            png(filename = paste("Average spectrum with bars ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
+                            replayPlot(classification_of_patients$average_spectrum_with_bars_profile_list[[p]][[i]])
+                            dev.off()
+                        }
+                    }, silent = TRUE)
+                } else if (file_type_export_images == "tiff") {
+                    # TIFF
+                    try({
+                        for (i in 1:length(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])) {
+                            # Retrieve the model name
+                            model_name <- names(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])[i]
+                            # Save the plot
+                            tiff(filename = paste("Average spectrum with bars ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
+                            replayPlot(classification_of_patients$average_spectrum_with_bars_profile_list[[p]][[i]])
+                            dev.off()
+                        }
+                    }, silent = TRUE)
+                } else if (file_type_export_images == "jpg" || file_type_export_images == "jpeg") {
+                    # JPEG
+                    try({
+                        for (i in 1:length(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])) {
+                            # Retrieve the model name
+                            model_name <- names(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])[i]
+                            # Save the plot
+                            jpeg(filename = paste("Average spectrum with bars ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
+                            replayPlot(classification_of_patients$average_spectrum_with_bars_profile_list[[p]][[i]])
+                            dev.off()
                         }
                     }, silent = TRUE)
                 }
             }
-            # Sort the STATISTICS folder numbers
-            try(CLASSIFICATION_present_folder_numbers <- sort(CLASSIFICATION_present_folder_numbers))
-            # The new folder number will be the greater + 1
-            try(CLASSIFICATION_new_folder_number <- CLASSIFICATION_present_folder_numbers[length(CLASSIFICATION_present_folder_numbers)] + 1)
-            # Generate the new subfolder
-            subfolder <- file.path(output_folder, paste("CLASSIFICATION", CLASSIFICATION_new_folder_number))
-            # Create the subfolder
-            dir.create(subfolder)
+            ## Ensemble classification profile matrix ALL
+            setwd(subfolder)
+            if (file_type_export_matrix == "csv") {
+                try(write.csv(classification_of_patients$classification_ensemble_matrix_profile_all, file = paste0("Ensemble MS profile classification matrix ALL", ".", file_type_export_matrix)), silent = TRUE)
+            } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
+                try({
+                    writeWorksheetToFile(file = paste0("Ensemble MS profile classification matrix ALL", ".", file_type_export_matrix), data = classification_of_patients$classification_ensemble_matrix_profile_all, sheet = "Ensemble MS classification", header = TRUE, rownames = rownames(classification_of_patients$classification_ensemble_matrix_profile_all))
+                }, silent = TRUE)
+            }
+            if (files_dumped == TRUE) {
+                ### Messagebox
+                tkmessageBox(title = "Files dumped!", message = "The classification files have been dumped!", icon = "info")
+            }
+            ### Go to the working directory
+            setwd(output_folder)
         } else {
-            # If it not present...
-            # Create the folder where to dump the files and go to it...
-            subfolder <- file.path(output_folder, paste("CLASSIFICATION", "1"))
-            # Create the subfolder
-            dir.create(subfolder)
-        }
-        # Go to the new working directory
-        setwd(subfolder)
-        ##### Dump the files
-        # Determine the number of patients, to create subfolders (try with the msi list, if it is still zero because only the profile has been classified, use the profile list)
-        number_of_patients <- length(classification_of_patients$final_result_matrix_msi_list)
-        if (number_of_patients == 0) {
-            number_of_patients <- length(classification_of_patients$final_result_matrix_profile_list)
-        }
-        ##### For each patient...
-        for (p in 1:number_of_patients) {
-            # Retrieve the patient name
-            if (length(classification_of_patients$final_result_matrix_msi_list) > 0) {
-                patient_name <- names(classification_of_patients$final_result_matrix_msi_list)[[p]]
-            } else {
-                patient_name <- NULL
-            }
-            if (is.null(patient_name)) {
-                if (length(classification_of_patients$final_result_matrix_profile_list) > 0) {
-                    patient_name <- names(classification_of_patients$final_result_matrix_profile_list)[[p]]
-                } else {
-                    patient_name <- NULL
-                }
-            }
-            if (is.null(patient_name)) {
-                patient_name <- p
-            }
-            # Create the subfolder and go to it
-            subfolder_patient <- file.path(subfolder, patient_name)
-            dir.create(subfolder_patient)
-            setwd(subfolder_patient)
-            ### Dump the files
-            ## MSI classification matrix
-            if (file_type_export_matrix == "csv") {
-                try(write.csv(classification_of_patients$final_result_matrix_msi_list[[p]], file = paste0("MSI classification matrix", ".", file_type_export_matrix)), silent = TRUE)
-            } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
-                try({
-                    writeWorksheetToFile(file = paste0("MSI classification matrix", ".", file_type_export_matrix), data = classification_of_patients$final_result_matrix_msi_list[[p]], sheet = "MSI classification", clearSheets = TRUE)
-                }, silent = TRUE)
-            }
-            ## MS profile matrix
-            if (file_type_export_matrix == "csv") {
-                try(write.csv(classification_of_patients$final_result_matrix_profile_list[[p]], file = paste0("MS profile classification matrix", ".", file_type_export_matrix)), silent = TRUE)
-            } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
-                try({
-                    writeWorksheetToFile(file = paste0("MS profile classification matrix", ".", file_type_export_matrix), data = classification_of_patients$final_result_matrix_profile_list[[p]], sheet = "MS profile classification", clearSheets = TRUE)
-                }, silent = TRUE)
-            }
-            ## MSI pixel classification
-            # PNG
-            if (file_type_export_images == "png") {
-                try({
-                    for (i in 1:length(classification_of_patients$classification_ms_images_list[[p]])) {
-                        # Retrieve the model name
-                        model_name <- names(classification_of_patients$classification_ms_images_list[[p]])[i]
-                        # Save the plot
-                        png(filename = paste("Pixel-by-pixel classification ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
-                        replayPlot(classification_of_patients$classification_ms_images_list[[p]][[i]])
-                        dev.off()
-                    }
-                }, silent = TRUE)
-            } else if (file_type_export_images == "tiff") {
-                # TIFF
-                try({
-                    for (i in 1:length(classification_of_patients$classification_ms_images_list[[p]])) {
-                        # Retrieve the model name
-                        model_name <- names(classification_of_patients$classification_ms_images_list[[p]])[i]
-                        # Save the plot
-                        tiff(filename = paste("Pixel-by-pixel classification ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
-                        replayPlot(classification_of_patients$classification_ms_images_list[[p]][[i]])
-                        dev.off()
-                    }
-                }, silent = TRUE)
-            } else if (file_type_export_images == "jpg" || file_type_export_images == "jpeg") {
-                # JPEG
-                try({
-                    for (i in 1:length(classification_of_patients$classification_ms_images_list[[p]])) {
-                        # Retrieve the model name
-                        model_name <- names(classification_of_patients$classification_ms_images_list[[p]])[i]
-                        # Save the plot
-                        jpeg(filename = paste("Pixel-by-pixel classification ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150, quality = 100)
-                        replayPlot(classification_of_patients$classification_ms_images_list[[p]][[i]])
-                        dev.off()
-                    }
-                }, silent = TRUE)
-            }
-            ## Ensemble classification MSI matrix
-            if (file_type_export_matrix == "csv") {
-                try(write.csv(classification_of_patients$classification_ensemble_matrix_msi_all[[p]], file = paste0("Ensemble MSI classification matrix", ".", file_type_export_matrix)), silent = TRUE)
-            } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
-                try({
-                    writeWorksheetToFile(file = paste0("Ensemble MSI classification matrix", ".", file_type_export_matrix), data = classification_of_patients$classification_ensemble_matrix_msi_all[[p]], sheet = "Ensemble MSI classification", clearSheets = TRUE)
-                }, silent = TRUE)
-            }
-            ## Ensemble classification profile matrix
-            if (file_type_export_matrix == "csv") {
-                try(write.csv(classification_of_patients$classification_ensemble_matrix_profile_all[[p]], file = paste0("Ensemble MS profile classification matrix", ".", file_type_export_matrix)), silent = TRUE)
-            } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
-                try({
-                    writeWorksheetToFile(file = paste0("Ensemble MS profile classification matrix", ".", file_type_export_matrix), data = classification_of_patients$classification_ensemble_matrix_profile_all[[p]], sheet = "Ensemble MS classification", clearSheets = TRUE)
-                }, silent = TRUE)
-            }
-            ## Ensemble MSI pixel classification
-            # PNG
-            if (file_type_export_images == "png") {
-                try({
-                    png(filename = paste("Ensemble Pixel-by-pixel classification", ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
-                    replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]])
-                    dev.off()
-                }, silent = TRUE)
-            } else if (file_type_export_images == "tiff") {
-                # TIFF
-                try({
-                    tiff(filename = paste("Ensemble Pixel-by-pixel classification", ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
-                    replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]])
-                    dev.off()
-                }, silent = TRUE)
-            } else if (file_type_export_images == "jpg" || file_type_export_images == "jpeg") {
-                # JPEG
-                try({
-                    jpeg(filename = paste("Ensemble Pixel-by-pixel classification", ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150, quality = 100)
-                    replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]])
-                    dev.off()
-                }, silent = TRUE)
-            }
-            ## Average spectrum with bars
-            # PNG
-            if (file_type_export_images == "png") {
-                try({
-                    for (i in 1:length(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])) {
-                        # Retrieve the model name
-                        model_name <- names(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])[i]
-                        # Save the plot
-                        png(filename = paste("Average spectrum with bars ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
-                        replayPlot(classification_of_patients$average_spectrum_with_bars_profile_list[[p]][[i]])
-                        dev.off()
-                    }
-                }, silent = TRUE)
-            } else if (file_type_export_images == "tiff") {
-                # TIFF
-                try({
-                    for (i in 1:length(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])) {
-                        # Retrieve the model name
-                        model_name <- names(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])[i]
-                        # Save the plot
-                        tiff(filename = paste("Average spectrum with bars ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
-                        replayPlot(classification_of_patients$average_spectrum_with_bars_profile_list[[p]][[i]])
-                        dev.off()
-                    }
-                }, silent = TRUE)
-            } else if (file_type_export_images == "jpg" || file_type_export_images == "jpeg") {
-                # JPEG
-                try({
-                    for (i in 1:length(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])) {
-                        # Retrieve the model name
-                        model_name <- names(classification_of_patients$average_spectrum_with_bars_profile_list[[p]])[i]
-                        # Save the plot
-                        jpeg(filename = paste("Average spectrum with bars ", model_name, ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
-                        replayPlot(classification_of_patients$average_spectrum_with_bars_profile_list[[p]][[i]])
-                        dev.off()
-                    }
-                }, silent = TRUE)
-            }
-        }
-        ## Ensemble classification profile matrix ALL
-        setwd(subfolder)
-        if (file_type_export_matrix == "csv") {
-            try(write.csv(classification_of_patients$classification_ensemble_matrix_profile_all, file = paste0("Ensemble MS profile classification matrix ALL", ".", file_type_export_matrix)), silent = TRUE)
-        } else if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
-            try({
-                writeWorksheetToFile(file = paste0("Ensemble MS profile classification matrix ALL", ".", file_type_export_matrix), data = classification_of_patients$classification_ensemble_matrix_profile_all, sheet = "Ensemble MS classification", header = TRUE, rownames = rownames(classification_of_patients$classification_ensemble_matrix_profile_all))
-            }, silent = TRUE)
-        }
-        if (files_dumped == TRUE) {
             ### Messagebox
-            tkmessageBox(title = "Files dumped!", message = "The classification files have been dumped!", icon = "info")
+            tkmessageBox(title = "No classification found", message = "No classification files have been found!\nRun the classification before dumping the files!", icon = "warning")
         }
-        ### Go to the working directory
-        setwd(output_folder)
-    } else {
-        ### Messagebox
-        tkmessageBox(title = "No classification found", message = "No classification files have been found!\nRun the classification before dumping the files!", icon = "warning")
     }
-}
-
-##### Show info function
-show_info_function <- function() {
-    if (Sys.info()[1] == "Linux") {
-        system(command = paste("xdg-open", github_wiki_url), intern = FALSE)
-    } else if (Sys.info()[1] == "Darwin") {
-        system(command = paste("open", github_wiki_url), intern = FALSE)
-    } else if (Sys.info()[1] == "Windows") {
-        system(command = paste("cmd /c start", github_wiki_url), intern = FALSE)
+    
+    ##### Show info function
+    show_info_function <- function() {
+        if (Sys.info()[1] == "Linux") {
+            system(command = paste("xdg-open", github_wiki_url), intern = FALSE)
+        } else if (Sys.info()[1] == "Darwin") {
+            system(command = paste("open", github_wiki_url), intern = FALSE)
+        } else if (Sys.info()[1] == "Windows") {
+            system(command = paste("cmd /c start", github_wiki_url), intern = FALSE)
+        }
     }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-##################################################################### WINDOW GUI
-
-### Check for updates
-check_for_updates_function()
-
-
-
-######################## GUI
-
-### Get system info (Platform - Release - Version (- Linux Distro))
-system_os = Sys.info()[1]
-os_release = Sys.info()[2]
-os_version = Sys.info()[3]
-
-### Get the screen resolution
-try({
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    ##################################################################### WINDOW GUI
+    
+    ### Check for updates
+    check_for_updates_function()
+    
+    
+    
+    ######################## GUI
+    
+    ### Get system info (Platform - Release - Version (- Linux Distro))
+    system_os = Sys.info()[1]
+    os_release = Sys.info()[2]
+    os_version = Sys.info()[3]
+    
+    ### Get the screen resolution
+    try({
+        # Windows
+        if (system_os == "Windows") {
+            # Get system info
+            screen_info <- system("wmic path Win32_VideoController get VideoModeDescription", intern = TRUE)[2]
+            # Get the resolution
+            screen_resolution <- unlist(strsplit(screen_info, "x"))
+            # Retrieve the values
+            screen_height <- as.numeric(screen_resolution[2])
+            screen_width <- as.numeric(screen_resolution[1])
+        } else if (system_os == "Linux") {
+            # Get system info
+            screen_info <- system("xdpyinfo -display :0", intern = TRUE)
+            # Get the resolution
+            screen_resolution <- screen_info[which(screen_info == "screen #0:") + 1]
+            screen_resolution <- unlist(strsplit(screen_resolution, "dimensions: ")[1])
+            screen_resolution <- unlist(strsplit(screen_resolution, "pixels"))[2]
+            # Retrieve the wto dimensions...
+            screen_width <- as.numeric(unlist(strsplit(screen_resolution, "x"))[1])
+            screen_height <- as.numeric(unlist(strsplit(screen_resolution, "x"))[2])
+        }
+    }, silent = TRUE)
+    
+    
+    
+    ### FONTS
+    # Default sizes (determined on a 1680x1050 screen) (in order to make them adjust to the size screen, the screen resolution should be retrieved)
+    title_font_size <- 24
+    other_font_size <- 11
+    
+    # Adjust fonts size according to the pixel number
+    try({
+        # Windows
+        if (system_os == "Windows") {
+            # Determine the font size according to the resolution
+            total_number_of_pixels <- screen_width * screen_height
+            # Determine the scaling factor (according to a complex formula)
+            scaling_factor_title_font <- as.numeric((0.03611 * total_number_of_pixels) + 9803.1254)
+            scaling_factor_other_font <- as.numeric((0.07757 * total_number_of_pixels) + 23529.8386)
+            title_font_size <- as.integer(round(total_number_of_pixels / scaling_factor_title_font))
+            other_font_size <- as.integer(round(total_number_of_pixels / scaling_factor_other_font))
+        } else if (system_os == "Linux") {
+            # Linux
+            # Determine the font size according to the resolution
+            total_number_of_pixels <- screen_width * screen_height
+            # Determine the scaling factor (according to a complex formula)
+            scaling_factor_title_font <- as.numeric((0.03611 * total_number_of_pixels) + 9803.1254)
+            scaling_factor_other_font <- as.numeric((0.07757 * total_number_of_pixels) + 23529.8386)
+            title_font_size <- as.integer(round(total_number_of_pixels / scaling_factor_title_font))
+            other_font_size <- as.integer(round(total_number_of_pixels / scaling_factor_other_font))
+        } else if (system_os == "Darwin") {
+            # macOS
+            print("Using default font sizes...")
+        }
+    }, silent = TRUE)
+    
+    # Define the fonts
     # Windows
     if (system_os == "Windows") {
-        # Get system info
-        screen_info <- system("wmic path Win32_VideoController get VideoModeDescription", intern = TRUE)[2]
-        # Get the resolution
-        screen_resolution <- unlist(strsplit(screen_info, "x"))
-        # Retrieve the values
-        screen_height <- as.numeric(screen_resolution[2])
-        screen_width <- as.numeric(screen_resolution[1])
+        garamond_title_bold = tkfont.create(family = "Garamond", size = title_font_size, weight = "bold")
+        garamond_other_normal = tkfont.create(family = "Garamond", size = other_font_size, weight = "normal")
+        arial_title_bold = tkfont.create(family = "Arial", size = title_font_size, weight = "bold")
+        arial_other_normal = tkfont.create(family = "Arial", size = other_font_size, weight = "normal")
+        trebuchet_title_bold = tkfont.create(family = "Trebuchet MS", size = title_font_size, weight = "bold")
+        trebuchet_other_normal = tkfont.create(family = "Trebuchet MS", size = other_font_size, weight = "normal")
+        trebuchet_other_bold = tkfont.create(family = "Trebuchet MS", size = other_font_size, weight = "bold")
+        # Use them in the GUI
+        title_font = trebuchet_title_bold
+        label_font = trebuchet_other_normal
+        entry_font = trebuchet_other_normal
+        button_font = trebuchet_other_bold
     } else if (system_os == "Linux") {
-        # Get system info
-        screen_info <- system("xdpyinfo -display :0", intern = TRUE)
-        # Get the resolution
-        screen_resolution <- screen_info[which(screen_info == "screen #0:") + 1]
-        screen_resolution <- unlist(strsplit(screen_resolution, "dimensions: ")[1])
-        screen_resolution <- unlist(strsplit(screen_resolution, "pixels"))[2]
-        # Retrieve the wto dimensions...
-        screen_width <- as.numeric(unlist(strsplit(screen_resolution, "x"))[1])
-        screen_height <- as.numeric(unlist(strsplit(screen_resolution, "x"))[2])
-    }
-}, silent = TRUE)
-
-
-
-### FONTS
-# Default sizes (determined on a 1680x1050 screen) (in order to make them adjust to the size screen, the screen resolution should be retrieved)
-title_font_size <- 24
-other_font_size <- 11
-
-# Adjust fonts size according to the pixel number
-try({
-    # Windows
-    if (system_os == "Windows") {
-        # Determine the font size according to the resolution
-        total_number_of_pixels <- screen_width * screen_height
-        # Determine the scaling factor (according to a complex formula)
-        scaling_factor_title_font <- as.numeric((0.03611 * total_number_of_pixels) + 9803.1254)
-        scaling_factor_other_font <- as.numeric((0.07757 * total_number_of_pixels) + 23529.8386)
-        title_font_size <- as.integer(round(total_number_of_pixels / scaling_factor_title_font))
-        other_font_size <- as.integer(round(total_number_of_pixels / scaling_factor_other_font))
-    } else if (system_os == "Linux") {
-        # Linux
-        # Determine the font size according to the resolution
-        total_number_of_pixels <- screen_width * screen_height
-        # Determine the scaling factor (according to a complex formula)
-        scaling_factor_title_font <- as.numeric((0.03611 * total_number_of_pixels) + 9803.1254)
-        scaling_factor_other_font <- as.numeric((0.07757 * total_number_of_pixels) + 23529.8386)
-        title_font_size <- as.integer(round(total_number_of_pixels / scaling_factor_title_font))
-        other_font_size <- as.integer(round(total_number_of_pixels / scaling_factor_other_font))
+        #Linux
+        # Ubuntu
+        if (length(grep("Ubuntu", os_version, ignore.case = TRUE)) > 0) {
+            # Define the fonts
+            ubuntu_title_bold = tkfont.create(family = "Ubuntu", size = (title_font_size + 2), weight = "bold")
+            ubuntu_other_normal = tkfont.create(family = "Ubuntu", size = (other_font_size), weight = "normal")
+            ubuntu_other_bold = tkfont.create(family = "Ubuntu", size = (other_font_size), weight = "bold")
+            liberation_title_bold = tkfont.create(family = "Liberation Sans", size = title_font_size, weight = "bold")
+            liberation_other_normal = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "normal")
+            liberation_other_bold = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "bold")
+            bitstream_charter_title_bold = tkfont.create(family = "Bitstream Charter", size = title_font_size, weight = "bold")
+            bitstream_charter_other_normal = tkfont.create(family = "Bitstream Charter", size = other_font_size, weight = "normal")
+            bitstream_charter_other_bold = tkfont.create(family = "Bitstream Charter", size = other_font_size, weight = "bold")
+            # Use them in the GUI
+            title_font = ubuntu_title_bold
+            label_font = ubuntu_other_normal
+            entry_font = ubuntu_other_normal
+            button_font = ubuntu_other_bold
+        } else if (length(grep("Fedora", os_version, ignore.case = TRUE)) > 0) {
+            # Fedora
+            cantarell_title_bold = tkfont.create(family = "Cantarell", size = title_font_size, weight = "bold")
+            cantarell_other_normal = tkfont.create(family = "Cantarell", size = other_font_size, weight = "normal")
+            cantarell_other_bold = tkfont.create(family = "Cantarell", size = other_font_size, weight = "bold")
+            liberation_title_bold = tkfont.create(family = "Liberation Sans", size = title_font_size, weight = "bold")
+            liberation_other_normal = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "normal")
+            liberation_other_bold = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "bold")
+            # Use them in the GUI
+            title_font = cantarell_title_bold
+            label_font = cantarell_other_normal
+            entry_font = cantarell_other_normal
+            button_font = cantarell_other_bold
+        } else {
+            # Other linux distros
+            liberation_title_bold = tkfont.create(family = "Liberation Sans", size = title_font_size, weight = "bold")
+            liberation_other_normal = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "normal")
+            liberation_other_bold = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "bold")
+            # Use them in the GUI
+            title_font = liberation_title_bold
+            label_font = liberation_other_normal
+            entry_font = liberation_other_normal
+            button_font = liberation_other_bold
+        }
     } else if (system_os == "Darwin") {
         # macOS
-        print("Using default font sizes...")
+        helvetica_title_bold = tkfont.create(family = "Helvetica", size = title_font_size, weight = "bold")
+        helvetica_other_normal = tkfont.create(family = "Helvetica", size = other_font_size, weight = "normal")
+        helvetica_other_bold = tkfont.create(family = "Helvetica", size = other_font_size, weight = "bold")
+        # Use them in the GUI
+        title_font = helvetica_title_bold
+        label_font = helvetica_other_normal
+        entry_font = helvetica_other_normal
+        button_font = helvetica_other_bold
     }
-}, silent = TRUE)
-
-# Define the fonts
-# Windows
-if (system_os == "Windows") {
-    garamond_title_bold = tkfont.create(family = "Garamond", size = title_font_size, weight = "bold")
-    garamond_other_normal = tkfont.create(family = "Garamond", size = other_font_size, weight = "normal")
-    arial_title_bold = tkfont.create(family = "Arial", size = title_font_size, weight = "bold")
-    arial_other_normal = tkfont.create(family = "Arial", size = other_font_size, weight = "normal")
-    trebuchet_title_bold = tkfont.create(family = "Trebuchet MS", size = title_font_size, weight = "bold")
-    trebuchet_other_normal = tkfont.create(family = "Trebuchet MS", size = other_font_size, weight = "normal")
-    trebuchet_other_bold = tkfont.create(family = "Trebuchet MS", size = other_font_size, weight = "bold")
-    # Use them in the GUI
-    title_font = trebuchet_title_bold
-    label_font = trebuchet_other_normal
-    entry_font = trebuchet_other_normal
-    button_font = trebuchet_other_bold
-} else if (system_os == "Linux") {
-    #Linux
-    # Ubuntu
-    if (length(grep("Ubuntu", os_version, ignore.case = TRUE)) > 0) {
-        # Define the fonts
-        ubuntu_title_bold = tkfont.create(family = "Ubuntu", size = (title_font_size + 2), weight = "bold")
-        ubuntu_other_normal = tkfont.create(family = "Ubuntu", size = (other_font_size), weight = "normal")
-        ubuntu_other_bold = tkfont.create(family = "Ubuntu", size = (other_font_size), weight = "bold")
-        liberation_title_bold = tkfont.create(family = "Liberation Sans", size = title_font_size, weight = "bold")
-        liberation_other_normal = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "normal")
-        liberation_other_bold = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "bold")
-        bitstream_charter_title_bold = tkfont.create(family = "Bitstream Charter", size = title_font_size, weight = "bold")
-        bitstream_charter_other_normal = tkfont.create(family = "Bitstream Charter", size = other_font_size, weight = "normal")
-        bitstream_charter_other_bold = tkfont.create(family = "Bitstream Charter", size = other_font_size, weight = "bold")
-        # Use them in the GUI
-        title_font = ubuntu_title_bold
-        label_font = ubuntu_other_normal
-        entry_font = ubuntu_other_normal
-        button_font = ubuntu_other_bold
-    } else if (length(grep("Fedora", os_version, ignore.case = TRUE)) > 0) {
-        # Fedora
-        cantarell_title_bold = tkfont.create(family = "Cantarell", size = title_font_size, weight = "bold")
-        cantarell_other_normal = tkfont.create(family = "Cantarell", size = other_font_size, weight = "normal")
-        cantarell_other_bold = tkfont.create(family = "Cantarell", size = other_font_size, weight = "bold")
-        liberation_title_bold = tkfont.create(family = "Liberation Sans", size = title_font_size, weight = "bold")
-        liberation_other_normal = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "normal")
-        liberation_other_bold = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "bold")
-        # Use them in the GUI
-        title_font = cantarell_title_bold
-        label_font = cantarell_other_normal
-        entry_font = cantarell_other_normal
-        button_font = cantarell_other_bold
-    } else {
-        # Other linux distros
-        liberation_title_bold = tkfont.create(family = "Liberation Sans", size = title_font_size, weight = "bold")
-        liberation_other_normal = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "normal")
-        liberation_other_bold = tkfont.create(family = "Liberation Sans", size = other_font_size, weight = "bold")
-        # Use them in the GUI
-        title_font = liberation_title_bold
-        label_font = liberation_other_normal
-        entry_font = liberation_other_normal
-        button_font = liberation_other_bold
-    }
-} else if (system_os == "Darwin") {
-    # macOS
-    helvetica_title_bold = tkfont.create(family = "Helvetica", size = title_font_size, weight = "bold")
-    helvetica_other_normal = tkfont.create(family = "Helvetica", size = other_font_size, weight = "normal")
-    helvetica_other_bold = tkfont.create(family = "Helvetica", size = other_font_size, weight = "bold")
-    # Use them in the GUI
-    title_font = helvetica_title_bold
-    label_font = helvetica_other_normal
-    entry_font = helvetica_other_normal
-    button_font = helvetica_other_bold
-}
-
-
-
-# The "area" where we will put our input lines
-window <- tktoplevel(bg = "white")
-tkwm.resizable(window, FALSE, FALSE)
-#tkpack.propagate(window, FALSE)
-tktitle(window) <- "MS PIXEL TYPER"
-# Title label
-title_label <- tkbutton(window, text = "MS PIXEL TYPER", command = show_info_function, font = title_font, bg = "white", relief = "flat")
-#### Browse
-# Library
-select_samples_button <- tkbutton(window, text = "BROWSE\nSPECTRA...", command = select_samples_function, font = button_font, bg = "white", width = 20)
-# Output
-browse_output_button <- tkbutton(window, text = "BROWSE\nOUTPUT FOLDER...", command = browse_output_function, font = button_font, bg = "white", width = 20)
-#### Entries
-# Peak picking method
-peak_picking_algorithm_entry <- tkbutton(window, text = "PEAK PICKING\nALGORITHM", command = peak_picking_algorithm_choice, font = button_font, bg = "white", width = 20)
-# Peaks deisotoping
-peak_deisotoping_entry <- tkbutton(window, text = "PEAK\nDEISOTOPING", command = peak_deisotoping_enveloping_choice, font = button_font, bg = "white", width = 20)
-# Decision method ensemble
-decision_method_ensemble_entry <- tkbutton(window, text = "DECISION METHOD\nENSEMBLE", command = decision_method_ensemble_choice, font = button_font, bg = "white", width = 20)
-# Classification mode
-classification_mode_entry <- tkbutton(window, text = "CLASSIFICATION\nMODE", command = classification_mode_choice, font = button_font, bg = "white", width = 20)
-# RData input
-select_RData_file_entry <- tkbutton(window, text = "SELECT RData\nWORKSPACE", command = select_RData_file_function, font = button_font, bg = "white", width = 20)
-# File type export matrix
-file_type_export_matrix_entry <- tkbutton(window, text = "FILE TYPE\nEXPORT\nMATRIX", command = file_type_export_matrix_choice, font = button_font, bg = "white", width = 20)
-# File type export images
-file_type_export_images_entry <- tkbutton(window, text = "FILE TYPE\nEXPORT\nIMAGES", command = file_type_export_images_choice, font = button_font, bg = "white", width = 20)
-# Multicore
-allow_parallelization_button <- tkbutton(window, text = "ALLOW\nPARALLEL\nCOMPUTING", command = allow_parallelization_choice, font = button_font, bg = "white", width = 20)
-# Spectra preprocessing button
-spectra_preprocessing_button <- tkbutton(window, text = "SPECTRA\nPREPROCESSING\nPARAMETERS...", command = preprocessing_window_function, font = button_font, bg = "white", width = 20)
-# End session
-end_session_button <- tkbutton(window, text = "QUIT", command = end_session_function, font = button_font, bg = "white", width = 20)
-# Run the MS Pixel Typer
-run_ms_pixel_typer_function_button <- tkbutton(window, text = "RUN THE\nMS PIXEL TYPER", command = run_ms_pixel_typer_function, font = button_font, bg = "white", width = 20)
-# Dump the files
-ms_pixel_typer_data_dumper_button <- tkbutton(window, text = "DUMP\nFILES", command = ms_pixel_typer_data_dumper_function, font = button_font, bg = "white", width = 20)
-# Updates
-download_updates_button <- tkbutton(window, text = "DOWNLOAD\nUPDATE", command = download_updates_function, font = button_font, bg = "white", width = 20)
-
-#### Displaying labels
-file_type_export_matrix_value_label <- tklabel(window, text = file_type_export_matrix, font = label_font, bg = "white", width = 20)
-file_type_export_images_value_label <- tklabel(window, text = file_type_export_images, font = label_font, bg = "white", width = 20)
-peak_picking_algorithm_value_label <- tklabel(window, text = peak_picking_algorithm_value, font = label_font, bg = "white", width = 20, height = 2)
-peak_deisotoping_enveloping_value_label <- tklabel(window, text = peak_deisotoping_enveloping_value, font = label_font, bg = "white", width = 20)
-allow_parallelization_value_label <- tklabel(window, text = allow_parallelization_value, font = label_font, bg = "white", width = 20)
-classification_mode_value_label <- tklabel(window, text = classification_mode_value, font = label_font, bg = "white", width = 20)
-RData_file_integrity_value_label <- tklabel(window, text = RData_file_integrity_value, font = label_font, bg = "white", width = 20)
-decision_method_ensemble_value_label <- tklabel(window, text = decision_method_ensemble_value, font = label_font, bg = "white", width = 20, height = 2)
-check_for_updates_value_label <- tklabel(window, text = check_for_updates_value, font = label_font, bg = "white", width = 20)
-
-#### Geometry manager
-# Scrollbar
-#window_scrollbar <- tkscrollbar(window, command = function(...)tkyview(window,...))
-# tkgrid
-tkgrid(title_label, row = 1, column = 1, columnspan = 2, padx = c(20, 20), pady = c(20, 20))
-tkgrid(select_samples_button, row = 7, column = 2, padx = c(10, 10), pady = c(10, 10))
-tkgrid(browse_output_button, row = 7, column = 1, padx = c(10, 10), pady = c(10, 10))
-#tkgrid(peak_deisotoping_entry, row = 2, column = 3, padx = c(10, 10), pady = c(10, 10))
-#tkgrid(peak_deisotoping_enveloping_value_label, row = 2, column = 4, padx = c(10, 10), pady = c(10, 10))
-#tkgrid(peak_picking_algorithm_entry, row = 2, column = 1, padx = c(10, 10), pady = c(10, 10))
-#tkgrid(peak_picking_algorithm_value_label, row = 2, column = 2, padx = c(10, 10), pady = c(10, 10))
-tkgrid(file_type_export_matrix_entry, row = 6, column = 1, padx = c(10, 10), pady = c(10, 10))
-tkgrid(file_type_export_matrix_value_label, row = 6, column = 2, padx = c(10, 10), pady = c(10, 10))
-tkgrid(file_type_export_images_entry, row = 6, column = 3, padx = c(10, 10), pady = c(10, 10))
-tkgrid(file_type_export_images_value_label, row = 6, column = 4, padx = c(10, 10), pady = c(10, 10))
-tkgrid(decision_method_ensemble_entry, row = 3, column = 2, padx = c(10, 10), pady = c(10, 10))
-tkgrid(decision_method_ensemble_value_label, row = 3, column = 3, padx = c(10, 10), pady = c(10, 10))
-tkgrid(classification_mode_entry, row = 5, column = 1, padx = c(10, 10), pady = c(10, 10))
-tkgrid(classification_mode_value_label, row = 5, column = 2, padx = c(10, 10), pady = c(10, 10))
-tkgrid(select_RData_file_entry, row = 5, column = 3, padx = c(10, 10), pady = c(10, 10))
-tkgrid(RData_file_integrity_value_label, row = 5, column = 4, padx = c(10, 10), pady = c(10, 10))
-tkgrid(allow_parallelization_button, row = 4, column = 1, padx = c(10, 10), pady = c(10, 10))
-tkgrid(allow_parallelization_value_label, row = 4, column = 2, padx = c(10, 10), pady = c(10, 10))
-tkgrid(spectra_preprocessing_button, row = 4, column = 3, padx = c(10, 10), pady = c(10, 10))
-tkgrid(run_ms_pixel_typer_function_button, row = 7, column = 3, padx = c(10, 10), pady = c(10, 10))
-#tkgrid(ms_pixel_typer_data_dumper_button, row = 7, column = 4, padx = c(10, 10), pady = c(10, 10))
-tkgrid(end_session_button, row = 7, column = 4, columnspan = 4, padx = c(10, 10), pady = c(10, 10))
-tkgrid(download_updates_button, row = 1, column = 3, padx = c(10, 10), pady = c(10, 10))
-tkgrid(check_for_updates_value_label, row = 1, column = 4, padx = c(10, 10), pady = c(10, 10))
-
-
-
-################################################################################
+    
+    
+    
+    # The "area" where we will put our input lines
+    window <- tktoplevel(bg = "white")
+    tkwm.resizable(window, FALSE, FALSE)
+    #tkpack.propagate(window, FALSE)
+    tktitle(window) <- "MS PIXEL TYPER"
+    # Title label
+    title_label <- tkbutton(window, text = "MS PIXEL TYPER", command = show_info_function, font = title_font, bg = "white", relief = "flat")
+    #### Browse
+    # Library
+    select_samples_button <- tkbutton(window, text = "BROWSE\nSPECTRA...", command = select_samples_function, font = button_font, bg = "white", width = 20)
+    # Output
+    browse_output_button <- tkbutton(window, text = "BROWSE\nOUTPUT FOLDER...", command = browse_output_function, font = button_font, bg = "white", width = 20)
+    #### Entries
+    # Peak picking method
+    peak_picking_algorithm_entry <- tkbutton(window, text = "PEAK PICKING\nALGORITHM", command = peak_picking_algorithm_choice, font = button_font, bg = "white", width = 20)
+    # Peaks deisotoping
+    peak_deisotoping_entry <- tkbutton(window, text = "PEAK\nDEISOTOPING", command = peak_deisotoping_enveloping_choice, font = button_font, bg = "white", width = 20)
+    # Decision method ensemble
+    decision_method_ensemble_entry <- tkbutton(window, text = "DECISION METHOD\nENSEMBLE", command = decision_method_ensemble_choice, font = button_font, bg = "white", width = 20)
+    # Classification mode
+    classification_mode_entry <- tkbutton(window, text = "CLASSIFICATION\nMODE", command = classification_mode_choice, font = button_font, bg = "white", width = 20)
+    # RData input
+    select_RData_file_entry <- tkbutton(window, text = "SELECT RData\nWORKSPACE", command = select_RData_file_function, font = button_font, bg = "white", width = 20)
+    # File type export matrix
+    file_type_export_matrix_entry <- tkbutton(window, text = "FILE TYPE\nEXPORT\nMATRIX", command = file_type_export_matrix_choice, font = button_font, bg = "white", width = 20)
+    # File type export images
+    file_type_export_images_entry <- tkbutton(window, text = "FILE TYPE\nEXPORT\nIMAGES", command = file_type_export_images_choice, font = button_font, bg = "white", width = 20)
+    # Multicore
+    allow_parallelization_button <- tkbutton(window, text = "ALLOW\nPARALLEL\nCOMPUTING", command = allow_parallelization_choice, font = button_font, bg = "white", width = 20)
+    # Spectra preprocessing button
+    spectra_preprocessing_button <- tkbutton(window, text = "SPECTRA\nPREPROCESSING\nPARAMETERS...", command = preprocessing_window_function, font = button_font, bg = "white", width = 20)
+    # End session
+    end_session_button <- tkbutton(window, text = "QUIT", command = end_session_function, font = button_font, bg = "white", width = 20)
+    # Run the MS Pixel Typer
+    run_ms_pixel_typer_function_button <- tkbutton(window, text = "RUN THE\nMS PIXEL TYPER", command = run_ms_pixel_typer_function, font = button_font, bg = "white", width = 20)
+    # Dump the files
+    ms_pixel_typer_data_dumper_button <- tkbutton(window, text = "DUMP\nFILES", command = ms_pixel_typer_data_dumper_function, font = button_font, bg = "white", width = 20)
+    # Updates
+    download_updates_button <- tkbutton(window, text = "DOWNLOAD\nUPDATE", command = download_updates_function, font = button_font, bg = "white", width = 20)
+    
+    #### Displaying labels
+    file_type_export_matrix_value_label <- tklabel(window, text = file_type_export_matrix, font = label_font, bg = "white", width = 20)
+    file_type_export_images_value_label <- tklabel(window, text = file_type_export_images, font = label_font, bg = "white", width = 20)
+    peak_picking_algorithm_value_label <- tklabel(window, text = peak_picking_algorithm_value, font = label_font, bg = "white", width = 20, height = 2)
+    peak_deisotoping_enveloping_value_label <- tklabel(window, text = peak_deisotoping_enveloping_value, font = label_font, bg = "white", width = 20)
+    allow_parallelization_value_label <- tklabel(window, text = allow_parallelization_value, font = label_font, bg = "white", width = 20)
+    classification_mode_value_label <- tklabel(window, text = classification_mode_value, font = label_font, bg = "white", width = 20)
+    RData_file_integrity_value_label <- tklabel(window, text = RData_file_integrity_value, font = label_font, bg = "white", width = 20)
+    decision_method_ensemble_value_label <- tklabel(window, text = decision_method_ensemble_value, font = label_font, bg = "white", width = 20, height = 2)
+    check_for_updates_value_label <- tklabel(window, text = check_for_updates_value, font = label_font, bg = "white", width = 20)
+    
+    #### Geometry manager
+    # Scrollbar
+    #window_scrollbar <- tkscrollbar(window, command = function(...)tkyview(window,...))
+    # tkgrid
+    tkgrid(title_label, row = 1, column = 1, columnspan = 2, padx = c(20, 20), pady = c(20, 20))
+    tkgrid(select_samples_button, row = 7, column = 2, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(browse_output_button, row = 7, column = 1, padx = c(10, 10), pady = c(10, 10))
+    #tkgrid(peak_deisotoping_entry, row = 2, column = 3, padx = c(10, 10), pady = c(10, 10))
+    #tkgrid(peak_deisotoping_enveloping_value_label, row = 2, column = 4, padx = c(10, 10), pady = c(10, 10))
+    #tkgrid(peak_picking_algorithm_entry, row = 2, column = 1, padx = c(10, 10), pady = c(10, 10))
+    #tkgrid(peak_picking_algorithm_value_label, row = 2, column = 2, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(file_type_export_matrix_entry, row = 6, column = 1, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(file_type_export_matrix_value_label, row = 6, column = 2, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(file_type_export_images_entry, row = 6, column = 3, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(file_type_export_images_value_label, row = 6, column = 4, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(decision_method_ensemble_entry, row = 3, column = 2, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(decision_method_ensemble_value_label, row = 3, column = 3, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(classification_mode_entry, row = 5, column = 1, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(classification_mode_value_label, row = 5, column = 2, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(select_RData_file_entry, row = 5, column = 3, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(RData_file_integrity_value_label, row = 5, column = 4, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(allow_parallelization_button, row = 4, column = 1, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(allow_parallelization_value_label, row = 4, column = 2, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(spectra_preprocessing_button, row = 4, column = 3, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(run_ms_pixel_typer_function_button, row = 7, column = 3, padx = c(10, 10), pady = c(10, 10))
+    #tkgrid(ms_pixel_typer_data_dumper_button, row = 7, column = 4, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(end_session_button, row = 7, column = 4, columnspan = 4, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(download_updates_button, row = 1, column = 3, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(check_for_updates_value_label, row = 1, column = 4, padx = c(10, 10), pady = c(10, 10))
+    
+    
+    
+    ################################################################################
 }
 
 
