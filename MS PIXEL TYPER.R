@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
     
-    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.09 ################
+    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.12 ################
     # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
     
     
@@ -1498,7 +1498,7 @@ functions_mass_spectrometry <- function() {
                         cpu_thread_number <- detectCores(logical = TRUE)
                         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
                             cpu_thread_number <- cpu_thread_number / 2
-                            spectra_binned <- mclapply(spectra, fun = function (spectra) binning_subfunction(spectra, final_data_points, binning_method), mc.cores = cpu_thread_number)
+                            spectra_binned <- mclapply(spectra, FUN = function(spectra) binning_subfunction(spectra, final_data_points, binning_method), mc.cores = cpu_thread_number)
                         } else if (Sys.info()[1] == "Windows") {
                             cpu_thread_number <- cpu_thread_number - 1
                             cl <- makeCluster(cpu_thread_number)
@@ -2584,7 +2584,7 @@ functions_mass_spectrometry <- function() {
                 cpu_thread_number <- detectCores(logical = TRUE)
                 if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
                     cpu_thread_number <- cpu_thread_number / 2
-                    peaks <- mclapply(spectra, FUN = function(spectra) detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR), mc.cores = cpu_thread_number)
+                    peaks <- detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR, mc.cores = cpu_thread_number)
                 } else if (Sys.info()[1] == "Windows") {
                     cpu_thread_number <- cpu_thread_number - 1
                     # Make the cluster (one for each core/thread)
@@ -2594,10 +2594,10 @@ functions_mass_spectrometry <- function() {
                     peaks <- parLapply(cl, spectra, fun = function(spectra) detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR))
                     stopCluster(cl)
                 } else {
-                    peaks <- lapply(spectra, FUN = function(spectra) detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR))
+                    peaks <- detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR)
                 }
             } else {
-                peaks <- lapply(spectra, FUN = function(spectra) detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR))
+                peaks <- detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR)
             }
         }
         ##### Deisotope peaklist
@@ -2624,7 +2624,7 @@ functions_mass_spectrometry <- function() {
     
     ################################################################### PEAK PICKING
     # This function takes a list of spectra (MALDIquant) and computes the normaliziations which are not in the MALDIquant package (e.g. RMS). Parallel computing is not implemented, since it will be incorporated in the preprocess_spectra function, whch already employs parallelization.
-    normalize_spectra <<- function(spectra, normalization_algorithm = "RMS", normalization_mass_range = NULL) {
+    normalize_spectra <<- function(spectra, normalization_algorithm = "TIC", normalization_mass_range = NULL) {
         # Load required packages
         install_and_load_required_packages(c("MALDIquant", "XML"))
         # Function for lapply (x = spectrum)
@@ -2680,7 +2680,7 @@ functions_mass_spectrometry <- function() {
     
     ################################################################### PEAK PICKING
     # This function takes a list of peaks (MALDIquant) and returns the same peak list without isotopic clusters, only monoisotopic peaks.
-    deisotope_peaks <<- function(peaks, pattern_model_correlation = 0.95, isotopic_tolerance = 10^(-4), isotope_pattern_distance = 1.00235, isotopic_pattern_size = 3L:5L, allow_parallelization = FALSE) {
+    deisotope_peaks <<- function(peaks, pattern_model_correlation = 0.95, isotopic_tolerance = 10^(-4), isotope_pattern_distance = 1.00235, isotopic_pattern_size = 3L:10L, allow_parallelization = FALSE) {
         ##### Load the required packages
         install_and_load_required_packages(c("MALDIquant", "parallel", "XML"))
         ##### Multiple peaks
@@ -2691,7 +2691,7 @@ functions_mass_spectrometry <- function() {
                 cpu_thread_number <- detectCores(logical = TRUE)
                 if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
                     cpu_thread_number <- cpu_thread_number / 2
-                    peaks_deisotoped <- mclapply(peaks, FUN = function(peaks) monoisotopicPeaks(peaks, minCor = pattern_model_correlation, tolerance = isotopic_tolerance, distance = isotope_pattern_distance, size = isotopic_pattern_size), mc.cores = cpu_thread_number)
+                    peaks_deisotoped <- monoisotopicPeaks(peaks, minCor = pattern_model_correlation, tolerance = isotopic_tolerance, distance = isotope_pattern_distance, size = isotopic_pattern_size, mc.cores = cpu_thread_number)
                 } else if (Sys.info()[1] == "Windows") {
                     cpu_thread_number <- cpu_thread_number - 1
                     # Make the CPU cluster for parallelisation
@@ -2705,11 +2705,11 @@ functions_mass_spectrometry <- function() {
                     stopCluster(cl)
                 } else {
                     # Run the algorithm
-                    peaks_deisotoped <- lapply(peaks, FUN = function(peaks) monoisotopicPeaks(peaks, minCor = pattern_model_correlation, tolerance = isotopic_tolerance, distance = isotope_pattern_distance, size = isotopic_pattern_size))
+                    peaks_deisotoped <- monoisotopicPeaks(peaks, minCor = pattern_model_correlation, tolerance = isotopic_tolerance, distance = isotope_pattern_distance, size = isotopic_pattern_size)
                 }
             } else {
                 # Run the algorithm
-                peaks_deisotoped <- lapply(peaks, FUN = function(peaks) monoisotopicPeaks(peaks, minCor = pattern_model_correlation, tolerance = isotopic_tolerance, distance = isotope_pattern_distance, size = isotopic_pattern_size))
+                peaks_deisotoped <- monoisotopicPeaks(peaks, minCor = pattern_model_correlation, tolerance = isotopic_tolerance, distance = isotope_pattern_distance, size = isotopic_pattern_size)
             }
         } else {
             # Run the algorithm
@@ -2739,17 +2739,17 @@ functions_mass_spectrometry <- function() {
                 # Take only the peaks with the highest intensity in the cluster
                 # If it is the first peak, check only the following ones
                 if (int == 1) {
-                    if (intensity_values[int + 1] < intensity_values[int]) {
+                    if ((intensity_values[int + 1] < intensity_values[int]) && (mz_values[int + 1] - mz_values[int] <= 1.1)) {
                         signals_to_keep <- append(signals_to_keep, mz_values[int])
                     }
                 } else if (int == length(intensity_values)) {
                     # If it is the last peak, check only the previous ones
-                    if (intensity_values[int - 1] < intensity_values[int]) {
+                    if ((intensity_values[int - 1] < intensity_values[int]) && (mz_values[int - 1] - mz_values[int] <= 1.1)) {
                         signals_to_keep <- append(signals_to_keep, mz_values[int])
                     }
                 } else {
                     # If it is the random peak, check both the previous and the following ones
-                    if (intensity_values[int - 1] < intensity_values[int] && intensity_values[int + 1] < intensity_values[int]) {
+                    if ((intensity_values[int - 1] < intensity_values[int] && intensity_values[int + 1] < intensity_values[int]) && (mz_values[int - 1] - mz_values[int] <= 1.1 && mz_values[int + 1] - mz_values[int] <= 1.1)) {
                         signals_to_keep <- append(signals_to_keep, mz_values[int])
                     }
                 }
@@ -6769,9 +6769,9 @@ functions_mass_spectrometry <- function() {
         ### Run the alignment only if the vector of custom features is not null
         if (!is.null(custom_feature_vector)) {
             # Check if there are X at the beginning of the feature numbers before converting into numbers
-            if (unlist(strsplit(as.character(custom_feature_vector[1]),""))[1] == "X") {
+            for (f in 1:length(custom_feature_vector)) {
                 # Remove the X
-                for (f in 1:length(custom_feature_vector)) {
+                if (startsWith(custom_feature_vector[f], "X")) {
                     name_splitted <- unlist(strsplit(custom_feature_vector[f],""))
                     feature_def <- name_splitted [2]
                     for (i in 3:length(name_splitted)) {
@@ -6855,7 +6855,7 @@ functions_mass_spectrometry <- function() {
                 # Append the fake spectrum and the fake peaklist to the original lists (the fake will be the first element of the list)
                 spectra_all <- append(fake_spectrum, spectra)
                 peaks_all <- append(fake_peaks, peaks)
-                # Generate the intensity matrix (with the custom features, which will be a little misaligned due to the alignment with the other peaks)
+                # Generate the intensity matrix
                 intensity_matrix_all <- intensityMatrix(peaks_all, spectra_all)
                 # Remove the first row (corresponding to the fake spectrum)
                 intensity_matrix_all <- intensity_matrix_all[2:nrow(intensity_matrix_all), ]
@@ -7922,6 +7922,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -7973,7 +7974,7 @@ ms_pixel_typer <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.09.1"
+    R_script_version <- "2017.06.12.0"
     ### GitHub URL where the R file is
     github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Pixel-Typer/master/MS%20PIXEL%20TYPER.R"
     ### GitHub URL of the program's WIKI
@@ -8169,27 +8170,31 @@ ms_pixel_typer <- function() {
             # Choose where to save the updated script
             tkmessageBox(title = "Download folder", message = "Select where to save the updated script file", icon = "info")
             download_folder <- tclvalue(tkchooseDirectory())
-            if (!nchar(download_folder)) {
-                # Get the output folder from the default working directory
-                download_folder <- getwd()
-            }
-            # Go to the working directory
-            setwd(download_folder)
-            tkmessageBox(message = paste("The updated script file will be downloaded in:\n\n", download_folder, sep = ""))
-            # Download the file
-            try({
-                download.file(url = github_R_url, destfile = paste(script_file_name, " (", online_version_number, ").R", sep = ""), method = "auto")
-                file_downloaded <- TRUE
-            }, silent = TRUE)
-            if (file_downloaded == TRUE) {
-                tkmessageBox(title = "Updated file downloaded!", message = paste("The updated script, named:\n\n", paste(script_file_name, " (", online_version_number, ").R", sep = ""), "\n\nhas been downloaded to:\n\n", download_folder, "\n\nClose everything, delete this file and run the script from the new file!", sep = ""), icon = "info")
-                tkmessageBox(title = "Changelog", message = paste("The updated script contains the following changes:\n", online_change_log, sep = ""), icon = "info")
+            # Download the file only if a download folder is specified, otherwise don't
+            if (download_folder != "") {
+                # Go to the working directory
+                setwd(download_folder)
+                tkmessageBox(message = paste("The updated script file will be downloaded in:\n\n", download_folder, sep = ""))
+                # Download the file
+                try({
+                    download.file(url = github_R_url, destfile = paste(script_file_name, " (", online_version_number, ").R", sep = ""), method = "auto")
+                    file_downloaded <- TRUE
+                }, silent = TRUE)
+                if (file_downloaded == TRUE) {
+                    tkmessageBox(title = "Updated file downloaded!", message = paste("The updated script, named:\n\n", paste(script_file_name, " (", online_version_number, ").R", sep = ""), "\n\nhas been downloaded to:\n\n", download_folder, "\n\nClose everything, delete this file and run the script from the new file!", sep = ""), icon = "info")
+                    tkmessageBox(title = "Changelog", message = paste("The updated script contains the following changes:\n", online_change_log, sep = ""), icon = "info")
+                } else {
+                    tkmessageBox(title = "Connection problem", message = paste("The updated script file could not be downloaded due to internet connection problems!\n\nManually download the updated script file at:\n\n", github_R_url, sep = ""), icon = "warning")
+                }
             } else {
-                tkmessageBox(title = "Connection problem", message = paste("The updated script file could not be downloaded due to internet connection problems!\n\nManually download the updated script file at:\n\n", github_R_url, sep = ""), icon = "warning")
+                # No download folder specified!
+                tkmessageBox(message = "The updated script file will not be downloaded!")
             }
         } else {
             tkmessageBox(title = "No update available", message = "NO UPDATES AVAILABLE!\n\nThe latest version is running!", icon = "info")
         }
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Preprocessing window
@@ -8414,6 +8419,8 @@ ms_pixel_typer <- function() {
             preprocessing_parameters <<- list(mass_range = mass_range, transformation_algorithm = transform_data_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_strength = smoothing_strength, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range, preprocess_spectra_in_packages_of = preprocess_spectra_in_packages_of, spectral_alignment_algorithm = spectral_alignment_algorithm, spectral_alignment_reference = spectral_alignment_reference)
             # Destroy the window upon committing
             tkdestroy(preproc_window)
+            # Raise the focus on the main window
+            tkraise(window)
         }
         ##### List of variables, whose values are taken from the entries in the GUI (create new variables for the sub window, that will replace the ones in the global environment, only if the default are changed)
         mass_range2 <- tclVar("")
@@ -8486,6 +8493,8 @@ ms_pixel_typer <- function() {
     file_type_export_matrix_choice <- function() {
         # Catch the value from the menu
         file_type_export_matrix <- select.list(c("csv","xlsx","xls"), title = "File type export", multiple = FALSE, preselect = "csv")
+        # Raise the focus on the main window
+        tkraise(window)
         # Default
         if (file_type_export_matrix == "") {
             file_type_export_matrix <- "csv"
@@ -8498,12 +8507,16 @@ ms_pixel_typer <- function() {
         # Set the value of the displaying label
         file_type_export_matrix_value_label <- tklabel(window, text = file_type_export_matrix, font = label_font, bg = "white", width = 20)
         tkgrid(file_type_export_matrix_value_label, row = 6, column = 2)
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### File type export IMAGES
     file_type_export_images_choice <- function() {
         # Catch the value from the menu
         file_type_export_images <- select.list(c("png","jpg","tiff"), title = "Image type export", multiple = FALSE, preselect = "png")
+        # Raise the focus on the main window
+        tkraise(window)
         # Default
         if (file_type_export_images == "") {
             file_type_export_images <- "png"
@@ -8513,12 +8526,16 @@ ms_pixel_typer <- function() {
         # Set the value of the displaying label
         file_type_export_images_value_label <- tklabel(window, text = file_type_export_images, font = label_font, bg = "white", width = 20)
         tkgrid(file_type_export_images_value_label, row = 6, column = 4)
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Classification mode choice
     classification_mode_choice <- function() {
         # Catch the value from the menu
         classification_mode <- select.list(c("pixel", "profile"), title = "Classification mode", multiple = TRUE, preselect = "pixel")
+        # Raise the focus on the main window
+        tkraise(window)
         # Default
         if (length(classification_mode) == 1 && classification_mode == "") {
             classification_mode <- "pixel"
@@ -8563,6 +8580,8 @@ ms_pixel_typer <- function() {
         # Set the value of the displaying label
         classification_mode_value_label <- tklabel(window, text = classification_mode_value, font = label_font, bg = "white", width = 20)
         tkgrid(classification_mode_value_label, row = 5, column = 2)
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Samples
@@ -8572,6 +8591,8 @@ ms_pixel_typer <- function() {
         ########## Prompt if a folder has to be selected or a single file
         # Catch the value from the popping out menu
         spectra_input_type <- select.list(c("file","folder"), title = "Folder or file?", multiple = FALSE, preselect = "file")
+        # Raise the focus on the main window
+        tkraise(window)
         # Default
         if (spectra_input_type == "") {
             spectra_input_type <- "file"
@@ -8601,6 +8622,8 @@ ms_pixel_typer <- function() {
         filepath_import_value <- filepath_import
         # Exit the function and put the variable into the R workspace
         filepath_import <<- filepath_import
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### RData file containing the models
@@ -8640,6 +8663,8 @@ ms_pixel_typer <- function() {
         filepath_R <<- filepath_R
         RData_file_integrity <<- RData_file_integrity
         RData_file_integrity_value <<- RData_file_integrity_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Output
@@ -8653,6 +8678,8 @@ ms_pixel_typer <- function() {
         setwd(output_folder)
         # Exit the function and put the variable into the R workspace
         output_folder <<- output_folder
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Exit
@@ -8664,6 +8691,8 @@ ms_pixel_typer <- function() {
     peak_picking_algorithm_choice <- function() {
         # Catch the value from the menu
         peak_picking_algorithm <- select.list(c("MAD", "SuperSmoother"), title = "Peak picking algorithm", multiple = FALSE, preselect = "MAD")
+        # Raise the focus on the main window
+        tkraise(window)
         # Default
         if (peak_picking_algorithm == "") {
             peak_picking_algorithm <- "MAD"
@@ -8680,12 +8709,16 @@ ms_pixel_typer <- function() {
         # Escape the function
         peak_picking_algorithm <<- peak_picking_algorithm
         peak_picking_algorithm_value <<- peak_picking_algorithm_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Peaks deisotoping or enveloping
     peak_deisotoping_enveloping_choice <- function() {
         # Catch the value from the menu
         peak_deisotoping_enveloping <- select.list(c("Peak Deisotoping","Peak Enveloping", "None"), title = "Peak Deisotoping/Enveloping", multiple = FALSE, preselect = "Peak Deisotoping")
+        # Raise the focus on the main window
+        tkraise(window)
         # Default
         if (peak_deisotoping_enveloping == "") {
             peak_deisotoping_enveloping <- "Peak Deisotoping"
@@ -8708,12 +8741,16 @@ ms_pixel_typer <- function() {
         peak_deisotoping <<- peak_deisotoping
         peak_enveloping <<- peak_enveloping
         peak_deisotoping_enveloping_value <<- peak_deisotoping_enveloping_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Decision method ensemble
     decision_method_ensemble_choice <- function() {
         # Catch the value from the menu
         decision_method_ensemble <- select.list(c("majority"), title = "Decision method", multiple = FALSE, preselect = "majority")
+        # Raise the focus on the main window
+        tkraise(window)
         # Default
         if (decision_method_ensemble == "") {
             decision_method_ensemble <- "majority"
@@ -8722,6 +8759,8 @@ ms_pixel_typer <- function() {
         if (decision_method_ensemble == "majority") {
             # Catch the value from the menu
             vote_weights_ensemble <- select.list(c("equal", "class assignment probabilities", "bayesian probabilities"), title = "Vote weights", multiple = FALSE, preselect = "equal")
+            # Raise the focus on the main window
+            tkraise(window)
             # Default
             if (vote_weights_ensemble == "") {
                 vote_weights_ensemble <- "equal"
@@ -8742,6 +8781,8 @@ ms_pixel_typer <- function() {
         vote_weights_ensemble <<- vote_weights_ensemble
         decision_method_ensemble <<- decision_method_ensemble
         decision_method_ensemble_value <<- decision_method_ensemble_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Multicore processing
@@ -8768,6 +8809,8 @@ ms_pixel_typer <- function() {
         # Escape the function
         allow_parallelization <<- allow_parallelization
         allow_parallelization_value <<- allow_parallelization_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Run the Peaklist Export function
@@ -8810,6 +8853,8 @@ ms_pixel_typer <- function() {
             ### Messagebox
             tkmessageBox(title = "Something is wrong", message = "Either no proper RData files or spectra files are provided!", icon = "warning")
         }
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Dump the output files
@@ -9056,6 +9101,8 @@ ms_pixel_typer <- function() {
             ### Messagebox
             tkmessageBox(title = "No classification found", message = "No classification files have been found!\nRun the classification before dumping the files!", icon = "warning")
         }
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Show info function
@@ -9227,6 +9274,8 @@ ms_pixel_typer <- function() {
     window <- tktoplevel(bg = "white")
     tkwm.resizable(window, FALSE, FALSE)
     #tkpack.propagate(window, FALSE)
+    # Raise the focus on the main window
+    tkraise(window)
     tktitle(window) <- "MS PIXEL TYPER"
     # Title label
     title_label <- tkbutton(window, text = "MS PIXEL TYPER", command = show_info_function, font = title_font, bg = "white", relief = "flat")
