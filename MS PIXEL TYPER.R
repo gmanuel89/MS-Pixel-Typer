@@ -1527,51 +1527,59 @@ functions_mass_spectrometry <- function() {
                 # lowest number of original data points
                 if (final_data_points > lowest_data_points) {
                     final_data_points <- lowest_data_points
-                    cat("\nBinning at this sample rate is not possible, the highest number of data points possible will be used\n")
-                    if (allow_parallelization == TRUE) {
-                        # Load the required libraries
-                        install_and_load_required_packages("parallel")
-                        # Detect the number of cores
-                        cpu_thread_number <- detectCores(logical = TRUE)
-                        if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-                            cpu_thread_number <- cpu_thread_number / 2
-                            spectra_binned <- mclapply(spectra, FUN = function (spectra) binning_subfunction(spectra, final_data_points, binning_method), mc.cores = cpu_thread_number)
-                        } else if (Sys.info()[1] == "Windows") {
-                            cpu_thread_number <- cpu_thread_number - 1
-                            cl <- makeCluster(cpu_thread_number)
-                            # Pass the variables to the cluster for running the function
-                            clusterExport(cl = cl, varlist = c("final_data_points", "binning_method"), envir = environment())
-                            spectra_binned <- parLapply(cl, spectra, fun = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
-                            stopCluster(cl)
-                        } else {
-                            spectra_binned <- lapply(spectra, FUN = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
-                        }
+                } else {
+                    final_data_points <- final_data_points
+                }
+                cat("\nBinning at this sample rate is not possible, the highest number of data points possible will be used\n")
+                if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
+                    # Load the required libraries
+                    install_and_load_required_packages("parallel")
+                    # Detect the number of cores
+                    cpu_thread_number <- detectCores(logical = TRUE)
+                    if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                        cpu_thread_number <- cpu_thread_number / 2
+                        spectra_binned <- mclapply(spectra, FUN = function (spectra) binning_subfunction(spectra, final_data_points, binning_method), mc.cores = cpu_thread_number)
+                    } else if (Sys.info()[1] == "Windows") {
+                        cpu_thread_number <- cpu_thread_number - 1
+                        cl <- makeCluster(cpu_thread_number)
+                        # Pass the variables to the cluster for running the function
+                        clusterExport(cl = cl, varlist = c("final_data_points", "binning_method"), envir = environment())
+                        spectra_binned <- parLapply(cl, spectra, fun = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
+                        stopCluster(cl)
                     } else {
                         spectra_binned <- lapply(spectra, FUN = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
                     }
-                }
-                if (final_data_points <= lowest_data_points) {
-                    if (allow_parallelization == TRUE) {
-                        # Load the required libraries
-                        install_and_load_required_packages("parallel")
-                        # Detect the number of cores
-                        cpu_thread_number <- detectCores(logical = TRUE)
-                        if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-                            cpu_thread_number <- cpu_thread_number / 2
-                            spectra_binned <- mclapply(spectra, FUN = function(spectra) binning_subfunction(spectra, final_data_points, binning_method), mc.cores = cpu_thread_number)
-                        } else if (Sys.info()[1] == "Windows") {
-                            cpu_thread_number <- cpu_thread_number - 1
-                            cl <- makeCluster(cpu_thread_number)
-                            # Pass the variables to the cluster for running the function
-                            clusterExport(cl = cl, varlist = c("final_data_points", "binning_method"), envir = environment())
-                            spectra_binned <- parLapply(cl, spectra, fun = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
-                            stopCluster(cl)
-                        } else {
-                            spectra_binned <- lapply(spectra, fun = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
-                        }
-                    } else {
-                        spectra_binned <- lapply(spectra, fun = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
+                } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                    # Load the packages
+                    install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                    ### PARALLEL BACKEND
+                    # Detect the number of cores
+                    cpu_thread_number <- detectCores(logical = TRUE)
+                    if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                        cpu_thread_number <- cpu_thread_number / 2
+                        install_and_load_required_packages("doMC")
+                        # Register the foreach backend
+                        registerDoMC(cores = cpu_thread_number)
+                    } else if (Sys.info()[1] == "Windows") {
+                        cpu_thread_number <- cpu_thread_number - 1
+                        install_and_load_required_packages("doParallel")
+                        # Register the foreach backend
+                        cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                        registerDoParallel(cl)
                     }
+                    # Preserve the list names
+                    if (!is.null(names(spectra))) {
+                        list_names <- names(spectra)
+                    } else {
+                        list_names <- NULL
+                    }
+                    spectra_binned <- list()
+                    spectra_binned <- foreach(i = 1:length(spectra), .packages = "MALDIquant") %dopar% {
+                        spectra_binned[[i]] <- binning_subfunction(spectra[[i]], final_data_points = final_data_points, binning_method = binning_method)
+                    }
+                    names(spectra_binned) <- list_names
+                } else {
+                    spectra_binned <- lapply(spectra, FUN = function(spectra) binning_subfunction(spectra, final_data_points, binning_method))
                 }
             }
             cat(table(sapply(spectra_binned, length)))
@@ -3133,7 +3141,7 @@ functions_mass_spectrometry <- function() {
                 # Average the spectra
                 average_spectrum <- averageMassSpectra(spectra, method = "mean")
                 # Peak picking
-                average_spectrum_peaks <- peak_picking(average_spectrum, peak_picking_algorithm = peak_picking_algorithm, SNR = 5, allow_parallelization = allow_parallelization)
+                average_spectrum_peaks <- peak_picking(average_spectrum, peak_picking_algorithm = peak_picking_algorithm, SNR = 3, allow_parallelization = allow_parallelization)
                 # The reference peaklist is the paklist of the average spectrum
                 reference_peaklist <- createMassPeaks(mass = average_spectrum_peaks@mass, intensity = average_spectrum_peaks@intensity, snr = rep.int(5, length(average_spectrum_peaks@mass)), metaData = list(name = "Reference peaklist AVG"))
             } else if (is.character(reference_peaklist) && reference_peaklist == "average" && is.null(spectra)) {
@@ -4377,7 +4385,7 @@ functions_mass_spectrometry <- function() {
     feature_selection <<- function(training_set, feature_selection_method = "ANOVA", features_to_select = 20, selection_method = "pls", selection_metric = "Kappa", correlation_method = "pearson", correlation_threshold = 0.75, auc_threshold = 0.7, cv_repeats_control = 5, k_fold_cv_control = 10, discriminant_attribute = "Class", non_features = c("Sample", "Class", "THY"), seed = NULL, automatically_select_features = FALSE, generate_plots = TRUE, preprocessing = c("center","scale"), allow_parallelization = FALSE, feature_reranking = FALSE) {
         # Load the required libraries
         install_and_load_required_packages(c("stats", "pROC"))
-        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach")) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             allow_parallelization <- TRUE
             ### PARALLEL BACKEND
             # Detect the number of cores
@@ -4547,7 +4555,7 @@ functions_mass_spectrometry <- function() {
         # Load the required libraries
         install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi"))
         # Parallelization
-        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach")) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             allow_parallelization <- TRUE
             ### PARALLEL BACKEND
             # Detect the number of cores
@@ -4622,7 +4630,7 @@ functions_mass_spectrometry <- function() {
         }
         names(peaklist_feature_selection) <- c(as.character(predictors_feature_selection), non_features)
         # Close the cluster for Windows
-        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach")) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Close the parallelization cluster (on Windows)
             if (Sys.info()[1] == "Windows") {
                 stopCluster(cl)
@@ -4701,7 +4709,7 @@ functions_mass_spectrometry <- function() {
         # Load the required libraries
         install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi", "lda"))
         # Parallelization
-        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach")) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             allow_parallelization <- TRUE
             ### PARALLEL BACKEND
             # Detect the number of cores
@@ -4846,7 +4854,7 @@ functions_mass_spectrometry <- function() {
                 fs_model <- fs_model_tuning
             }
         }
-        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach")) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Close the parallelization cluster (on Windows)
             if (Sys.info()[1] == "Windows") {
                 stopCluster(cl)
@@ -5340,7 +5348,7 @@ functions_mass_spectrometry <- function() {
         # Load the required libraries
         install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi"))
         ### Parallelization
-        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach")) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             allow_parallelization <- TRUE
             ### PARALLEL BACKEND
             # Detect the number of cores
@@ -5387,7 +5395,7 @@ functions_mass_spectrometry <- function() {
             fs_model_plot <- NULL
         }
         ### Stop the parallel cluster for Windows
-        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach")) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Close the parallelization cluster (on Windows)
             if (Sys.info()[1] == "Windows") {
                 stopCluster(cl)
@@ -7830,7 +7838,7 @@ functions_mass_spectrometry <- function() {
         triangle_number_graph <- nrow(triangle_matrix)
         # Population size
         population_size <- vertex_number * 10
-        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach")) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             allow_parallelization <- TRUE
             ### PARALLEL BACKEND
             # Detect the number of cores
@@ -7849,7 +7857,7 @@ functions_mass_spectrometry <- function() {
             }
         }
         # Establish if the parallel computation can be performed or not in the GA (otherwise it returns an error)
-        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach")) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             if (cpu_thread_number > 1) {
                 GA_parallel <- TRUE
             } else {
@@ -7957,7 +7965,7 @@ functions_mass_spectrometry <- function() {
         #out <- summary(GA_model)
         #cat(out)
         # Stop the cluster for parallel computing (only on Windows)
-        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach")) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             if (Sys.info()[1] == "Windows") {
                 stopCluster(cls)
             }
@@ -8332,6 +8340,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8383,7 +8392,9 @@ ms_pixel_typer <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.13.0"
+    R_script_version <- "2017.06.13.2"
+    ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
+    force_update <- FALSE
     ### GitHub URL where the R file is
     github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Pixel-Typer/master/MS%20PIXEL%20TYPER.R"
     ### GitHub URL of the program's WIKI
@@ -8392,8 +8403,6 @@ ms_pixel_typer <- function() {
     script_file_name <- "MS PIXEL TYPER"
     # Change log
     change_log <- "1. New vote weights!!\n2. Fixed GUI\n3. Parallel now in foreach!"
-    ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
-    force_update <- FALSE
     
     
     
@@ -8475,10 +8484,12 @@ ms_pixel_typer <- function() {
     
     ##################################################### DEFINE WHAT THE BUTTONS DO
     
-    ##### Check for updates (from my GitHub page) (it just updates the label telling the user if there are updates) (it updates the check for updates value that is called by the label)
+    ##### Check for updates (from my GitHub page) (it just updates the label telling the user if there are updates) (it updates the check for updates value that is called by the label). The function will read also if an update should be forced.
     check_for_updates_function <- function() {
         ### Initialize the version number
         online_version_number <- NULL
+        ### Initialize the force update
+        online_force_update <- NULL
         ### Initialize the variable that says if there are updates
         update_available <- FALSE
         ### Initialize the change log
@@ -8492,7 +8503,7 @@ ms_pixel_typer <- function() {
                 online_file <- readLines(con = github_R_url)
                 ### Retrieve the version number
                 for (l in online_file) {
-                    if (length(grep("R_script_version", l, fixed = TRUE)) > 0) {
+                    if (length(grep("R_script_version <-", l, fixed = TRUE)) > 0) {
                         # Isolate the "variable" value
                         online_version_number <- unlist(strsplit(l, "R_script_version <- ", fixed = TRUE))[2]
                         # Remove the quotes
@@ -8500,9 +8511,20 @@ ms_pixel_typer <- function() {
                         break
                     }
                 }
+                ### Retrieve the force update
+                for (l in online_file) {
+                    if (length(grep("force_update <-", l, fixed = TRUE)) > 0) {
+                        # Isolate the "variable" value
+                        online_force_update <- as.logical(unlist(strsplit(l, "force_update <- ", fixed = TRUE))[2])
+                        break
+                    }
+                    if (is.null(online_force_update)) {
+                        online_force_update <- FALSE
+                    }
+                }
                 ### Retrieve the change log
                 for (l in online_file) {
-                    if (length(grep("change_log", l, fixed = TRUE)) > 0) {
+                    if (length(grep("change_log <-", l, fixed = TRUE)) > 0) {
                         # Isolate the "variable" value
                         online_change_log <- unlist(strsplit(l, "change_log <- ", fixed = TRUE))[2]
                         # Remove the quotes
@@ -8570,12 +8592,13 @@ ms_pixel_typer <- function() {
         online_change_log <<- online_change_log
         check_for_updates_value <<- check_for_updates_value
         online_version_number <<- online_version_number
+        online_force_update <<- online_force_update
     }
     
     ##### Download the updated file (from my GitHub page)
     download_updates_function <- function() {
         # Download updates only if there are updates available
-        if (update_available == TRUE) {
+        if (update_available == TRUE || online_force_update == TRUE) {
             # Initialize the variable which says if the file has been downloaded successfully
             file_downloaded <- FALSE
             # Choose where to save the updated script
@@ -8588,11 +8611,11 @@ ms_pixel_typer <- function() {
                 tkmessageBox(message = paste("The updated script file will be downloaded in:\n\n", download_folder, sep = ""))
                 # Download the file
                 try({
-                    download.file(url = github_R_url, destfile = paste(script_file_name, " (", online_version_number, ").R", sep = ""), method = "auto")
+                    download.file(url = github_R_url, destfile = paste0(script_file_name, ".R"), method = "auto")
                     file_downloaded <- TRUE
                 }, silent = TRUE)
                 if (file_downloaded == TRUE) {
-                    tkmessageBox(title = "Updated file downloaded!", message = paste("The updated script, named:\n\n", paste(script_file_name, " (", online_version_number, ").R", sep = ""), "\n\nhas been downloaded to:\n\n", download_folder, "\n\nClose everything, delete this file and run the script from the new file!", sep = ""), icon = "info")
+                    tkmessageBox(title = "Updated file downloaded!", message = paste("The updated script, named:\n\n", paste0(script_file_name, ".R"), "\n\nhas been downloaded to:\n\n", download_folder, "\n\nClose everything, delete this file and run the script from the new file!", sep = ""), icon = "info")
                     tkmessageBox(title = "Changelog", message = paste("The updated script contains the following changes:\n", online_change_log, sep = ""), icon = "info")
                 } else {
                     tkmessageBox(title = "Connection problem", message = paste("The updated script file could not be downloaded due to internet connection problems!\n\nManually download the updated script file at:\n\n", github_R_url, sep = ""), icon = "warning")
@@ -8604,8 +8627,14 @@ ms_pixel_typer <- function() {
         } else {
             tkmessageBox(title = "No update available", message = "NO UPDATES AVAILABLE!\n\nThe latest version is running!", icon = "info")
         }
-        # Raise the focus on the main window
-        tkraise(window)
+        # Raise the focus on the main window (if there is)
+        try(tkraise(window), silent = TRUE)
+    }
+    
+    ### Downloading forced updates
+    check_for_updates_function()
+    if (online_force_update == TRUE) {
+        download_updates_function()
     }
     
     ##### Preprocessing window
@@ -9543,11 +9572,6 @@ ms_pixel_typer <- function() {
     
     
     ##################################################################### WINDOW GUI
-    
-    ### Check for updates
-    check_for_updates_function()
-    
-    
     
     ######################## GUI
     
