@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
     
-    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.16 ################
+    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.19 ################
     # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
     
     
@@ -297,11 +297,11 @@ functions_mass_spectrometry <- function() {
                 for (m in 1:length(model_performance_parameter_list)) {
                     # For each class...
                     for (cl in 1:length(class_list)) {
-                        # If the predicted class (by the model) corresponds to the class in evaluation, the probability associated is the likelihood P(d=1|h=1), otherwise it is 1-likelihood P(d=0|h=1)
+                        # If the predicted class (by the model) corresponds to the class in evaluation, the probability associated is the sensitivity (true positive rate -> TPR) for that class P(d=1|h=1), otherwise it is 1-sensitivity (or false positive rate -> FPR) for that class P(d=0|h=1)
                         if (predicted_classes_models[m] == class_list[cl]) {
-                            bayesian_prob <- model_performance_parameter_list[[m]][[(predicted_classes_models[m])]][["sensitivity"]]
+                            bayesian_prob <- model_performance_parameter_list[[m]][[(predicted_classes_models[m])]][["TPR"]]
                         } else {
-                            bayesian_prob <- 1 - model_performance_parameter_list[[m]][[(predicted_classes_models[m])]][["sensitivity"]]
+                            bayesian_prob <- model_performance_parameter_list[[m]][[(predicted_classes_models[m])]][["FPR"]]
                         }
                         # Append the probability to the vector of probabilities 
                         if (is.null(class_probs_list[[(class_list[cl])]])) {
@@ -5310,13 +5310,20 @@ functions_mass_spectrometry <- function() {
             for (cl in 1:length(class_list)) {
                 # One is the positive class
                 positive_class_cv <- class_list[cl]
+                negative_class_cv <- class_list[class_list != positive_class_cv]
                 # Confusion matrix (do not overwrite the exsisting one, it is always the same, independently from the positive class chosen)
                 if (is.null(confusion_matrix)) {
-                    confusion_matrix <- confusionMatrix(model_object, mode = "everything", dnn = c("Predicted", "Actual"))
+                    confusion_matrix <- confusionMatrix(model_object, mode = "everything", dnn = c("Predicted", "Actual"), positive = positive_class_cv)
                 }
                 # Convert it into a dataframe (rows = Predicted, columns = Actual)
                 if (is.null(confusion_matrix_df)) {
-                    confusion_matrix_df <- as.matrix(cbind(confusion_matrix$table[,1], confusion_matrix$table[,2]))
+                    for (cl in 1:ncol(confusion_matrix$table)) {
+                        if (is.null(confusion_matrix_df)) {
+                            confusion_matrix_df <- as.matrix(cbind(confusion_matrix$table[,cl]))
+                        } else {
+                            confusion_matrix_df <- as.matrix(cbind(confusion_matrix_df, confusion_matrix$table[,cl]))
+                        }
+                    }
                     colnames(confusion_matrix_df) <- colnames(confusion_matrix$table)
                     rownames(confusion_matrix_df) <- rownames(confusion_matrix$table)
                     confusion_matrix_df <- as.data.frame(confusion_matrix_df)
@@ -5324,13 +5331,27 @@ functions_mass_spectrometry <- function() {
                 # Determine the performance parameters (create a vector with all of them, named)
                 performance_parameter_vector <- vector()
                 performance_parameter_vector[["class proportion"]] <- nrow(training_set[training_set[, discriminant_attribute] == positive_class_cv, ]) / nrow(training_set)
-                performance_parameter_vector[["recall"]] <- recall(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["precision"]] <- precision(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["sensitivity"]] <- sensitivity(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["specificity"]] <- specificity(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["PPV"]] <- posPredValue(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["NPV"]] <- negPredValue(confusion_matrix$table, positive = positive_class_cv)
+                true_positives <- confusion_matrix_df[positive_class_cv, positive_class_cv]
+                true_negatives <- confusion_matrix_df[negative_class_cv, negative_class_cv]
+                false_positives <- confusion_matrix_df[positive_class_cv, negative_class_cv]
+                false_negatives <- confusion_matrix_df[negative_class_cv, positive_class_cv]
+                performance_parameter_vector[["sensitivity"]] <- true_positives / (true_positives + false_negatives)
+                performance_parameter_vector[["specificity"]] <- true_negatives / (true_negatives + false_positives)
+                performance_parameter_vector[["TPR"]] <- performance_parameter_vector[["sensitivity"]]
+                performance_parameter_vector[["TNR"]] <- performance_parameter_vector[["specificity"]]
+                performance_parameter_vector[["FPR"]] <- false_positives / true_negatives + false_positives
+                performance_parameter_vector[["FNR"]] <- false_negatives / true_positives + false_negatives
+                performance_parameter_vector[["accuracy"]] <- (true_positives + true_negatives) / (true_positives + true_negatives + false_positives + false_negatives)
+                performance_parameter_vector[["PPV"]] <- true_positives / (true_positives + false_positives)
+                performance_parameter_vector[["NPV"]] <- true_negatives / (true_negatives + false_negatives)
+                performance_parameter_vector[["FDR"]] <- 1 - performance_parameter_vector[["PPV"]]
+                performance_parameter_vector[["FOR"]] <- 1 - performance_parameter_vector[["NPV"]]
+                performance_parameter_vector[["LR+"]] <- performance_parameter_vector[["TPR"]] / performance_parameter_vector[["FPR"]]
+                performance_parameter_vector[["LR-"]] <- performance_parameter_vector[["FNR"]] / performance_parameter_vector[["TNR"]]
+                performance_parameter_vector[["DOR"]] <- performance_parameter_vector[["LR+"]] / performance_parameter_vector[["LR-"]]
                 performance_parameter_vector[["balanced accuracy"]] <- (performance_parameter_vector[["sensitivity"]] + performance_parameter_vector[["specificity"]]) / 2
+                performance_parameter_vector[["recall"]] <- performance_parameter_vector[["sensitivity"]]
+                performance_parameter_vector[["precision"]] <- performance_parameter_vector[["PPV"]]
                 # Store the vector in the list, named according to the positive class of the CV
                 performance_parameter_list[[positive_class_cv]] <- performance_parameter_vector
             }
@@ -5349,13 +5370,20 @@ functions_mass_spectrometry <- function() {
             for (cl in 1:length(class_list)) {
                 # One is the positive class
                 positive_class_cv <- class_list[cl]
+                negative_class_cv <- class_list[class_list != positive_class_cv]
                 # Confusion matrix (do not overwrite the exsisting one, it is always the same, independently from the positive class chosen)
                 if (is.null(confusion_matrix)) {
                     confusion_matrix <- confusionMatrix(data = predicted_classes_model, reference = test_set[, discriminant_attribute], positive = positive_class_cv, dnn = c("Predicted", "Actual"), mode = "everything")
                 }
                 # Convert it into a dataframe (rows = Predicted, columns = Actual)
                 if (is.null(confusion_matrix_df)) {
-                    confusion_matrix_df <- as.matrix(cbind(confusion_matrix$table[,1], confusion_matrix$table[,2]))
+                    for (cl in 1:ncol(confusion_matrix$table)) {
+                        if (is.null(confusion_matrix_df)) {
+                            confusion_matrix_df <- as.matrix(cbind(confusion_matrix$table[,cl]))
+                        } else {
+                            confusion_matrix_df <- as.matrix(cbind(confusion_matrix_df, confusion_matrix$table[,cl]))
+                        }
+                    }
                     colnames(confusion_matrix_df) <- colnames(confusion_matrix$table)
                     rownames(confusion_matrix_df) <- rownames(confusion_matrix$table)
                     confusion_matrix_df <- as.data.frame(confusion_matrix_df)
@@ -5363,13 +5391,27 @@ functions_mass_spectrometry <- function() {
                 # Determine the performance parameters (create a vector with all of them, named)
                 performance_parameter_vector <- vector()
                 performance_parameter_vector[["class proportion"]] <- nrow(training_set[training_set[, discriminant_attribute] == positive_class_cv, ]) / nrow(training_set)
-                performance_parameter_vector[["recall"]] <- recall(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["precision"]] <- precision(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["sensitivity"]] <- sensitivity(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["specificity"]] <- specificity(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["PPV"]] <- posPredValue(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["NPV"]] <- negPredValue(confusion_matrix$table, positive = positive_class_cv)
+                true_positives <- confusion_matrix_df[positive_class_cv, positive_class_cv]
+                true_negatives <- confusion_matrix_df[negative_class_cv, negative_class_cv]
+                false_positives <- confusion_matrix_df[positive_class_cv, negative_class_cv]
+                false_negatives <- confusion_matrix_df[negative_class_cv, positive_class_cv]
+                performance_parameter_vector[["sensitivity"]] <- true_positives / (true_positives + false_negatives)
+                performance_parameter_vector[["specificity"]] <- true_negatives / (true_negatives + false_positives)
+                performance_parameter_vector[["TPR"]] <- performance_parameter_vector[["sensitivity"]]
+                performance_parameter_vector[["TNR"]] <- performance_parameter_vector[["specificity"]]
+                performance_parameter_vector[["FPR"]] <- false_positives / true_negatives + false_positives
+                performance_parameter_vector[["FNR"]] <- false_negatives / true_positives + false_negatives
+                performance_parameter_vector[["accuracy"]] <- (true_positives + true_negatives) / (true_positives + true_negatives + false_positives + false_negatives)
+                performance_parameter_vector[["PPV"]] <- true_positives / (true_positives + false_positives)
+                performance_parameter_vector[["NPV"]] <- true_negatives / (true_negatives + false_negatives)
+                performance_parameter_vector[["FDR"]] <- 1 - performance_parameter_vector[["PPV"]]
+                performance_parameter_vector[["FOR"]] <- 1 - performance_parameter_vector[["NPV"]]
+                performance_parameter_vector[["LR+"]] <- performance_parameter_vector[["TPR"]] / performance_parameter_vector[["FPR"]]
+                performance_parameter_vector[["LR-"]] <- performance_parameter_vector[["FNR"]] / performance_parameter_vector[["TNR"]]
+                performance_parameter_vector[["DOR"]] <- performance_parameter_vector[["LR+"]] / performance_parameter_vector[["LR-"]]
                 performance_parameter_vector[["balanced accuracy"]] <- (performance_parameter_vector[["sensitivity"]] + performance_parameter_vector[["specificity"]]) / 2
+                performance_parameter_vector[["recall"]] <- performance_parameter_vector[["sensitivity"]]
+                performance_parameter_vector[["precision"]] <- performance_parameter_vector[["PPV"]]
                 # Store the vector in the list, named according to the positive class of the CV
                 performance_parameter_list[[positive_class_cv]] <- performance_parameter_vector
             }
@@ -5819,6 +5861,8 @@ functions_mass_spectrometry <- function() {
         # Restore the lists
         peaks_database <- peaks_all[1:database_size]
         peaks_test <- peaks_all[(database_size + 1):length(peaks_all)]
+        names(peaks_database) <- database_names
+        names(peaks_test) <- test_names
         #### Replace the sample name, both in the library and in the test set
         peaks_test <- replace_sample_name(peaks_test, spectra_format = spectra_format)
         peaks_database <- replace_class_name(peaks_database,  class_list = class_list_library, spectra_format = spectra_format)
@@ -5858,16 +5902,15 @@ functions_mass_spectrometry <- function() {
         #plot(hierarchical_clustering, main = "Hierarchical clustering analysis - Spectral Typer, xlab = "Samples", ylab = "Tree height")
         hca_dendrogram <- ggdendrogram(hierarchical_clustering, segments = TRUE, labels = TRUE, leaf_labels = TRUE, rotate = TRUE, theme_dendro = TRUE)#, main = "Hierarchical clustering analysis - Spectral Typer", xlab = "Samples", ylab = "Tree height")
         #hca_dendrogram <- recordPlot()
-        #
         distance_matrix <- as.matrix(distance_matrix)
         # The distance matrix displays the distance between the spectra
         colnames(distance_matrix) <- peaklist_matrix[,"Sample"]
         rownames(distance_matrix) <- peaklist_matrix[,"Sample"]
         # Remove the first rows (the spectra from the database) and Keep only the first columns (the spectra from the database)
         distance_matrix <- distance_matrix[(database_size + 1):nrow(distance_matrix), 1:database_size]
-        ### Normalise the euclidean distances
+        ### Normalize the euclidean distances (per sample)
         if (normalize_distances == TRUE) {
-            # TIC (SUM)
+            # Sample TIC (SUM of the distances of the sample from all the database entries)
             if (normalization_method == "sum") {
                 # Compute the sum of the rows
                 row_sums <- apply(distance_matrix, MARGIN = 1, FUN = sum)
@@ -5891,21 +5934,42 @@ functions_mass_spectrometry <- function() {
                 }
                 result_matrix <- apply(distance_matrix, MARGIN = c(1,2), FUN = function(x) scoring_function(x))
             } else if (normalization_method == "max") {
-                # SUM
+                # MAX (MAX of the distances of the sample from all the database entries)
                 # Divide each element of the matrix by the maximum of the row
                 for (r in 1:nrow(distance_matrix)) {
-                    distance_matrix [r,] <- distance_matrix[r,] / max(distance_matrix[r,])
+                    distance_matrix[r,] <- distance_matrix[r,] / max(distance_matrix[r,], na.rm = TRUE)
                 }
                 # Multiply everything by 100, to have more readable results (percentage of the max)
                 distance_matrix <- distance_matrix * 100
                 # The classification is made by comparing the single sample spectrum with the spectrum of the database class (the distance is displayed in the distance matrix): the closer the better
                 # Scroll the rows, assign the class based upon the distance, create the output matrix for results (create a function to apply to each matrix row)
-                scoring_function <<- function (x) {
+                scoring_function <- function(x) {
                     if (x < 50) {
                         x <- paste0("YES\n(", round(as.numeric(x),3), ")")
                     } else if (x >= 50 && x < 75) {
                         x <- paste0("NI\n(", round(as.numeric(x),3), ")")
                     } else if (x >= 75) {
+                        x <- paste0("NO\n(", round(as.numeric(x),3), ")")
+                    }
+                    return(x)
+                }
+                result_matrix <- apply(distance_matrix, MARGIN = c(1,2), FUN = function(x) scoring_function(x))
+            } else if (normalization_method == "rms") {
+                # RMS (RMS of the distances of the sample from all the database entries)
+                # Divide each element of the matrix by the maximum of the row
+                for (r in 1:nrow(distance_matrix)) {
+                    distance_matrix[r,] <- distance_matrix[r,] / sqrt(sum(distance_matrix[r,], na.rm = TRUE)^2)
+                }
+                # Multiply everything by 10, to have more readable results
+                distance_matrix <- distance_matrix * 10
+                # The classification is made by comparing the single sample spectrum with the spectrum of the database class (the distance is displayed in the distance matrix): the closer the better
+                # Scroll the rows, assign the class based upon the distance, create the output matrix for results (create a function to apply to each matrix row)
+                scoring_function <- function(x) {
+                    if (x < 1) {
+                        x <- paste0("YES\n(", round(as.numeric(x),3), ")")
+                    } else if (x >= 1 && x < 1.2) {
+                        x <- paste0("NI\n(", round(as.numeric(x),3), ")")
+                    } else if (x >= 1.2) {
                         x <- paste0("NO\n(", round(as.numeric(x),3), ")")
                     }
                     return(x)
@@ -6213,7 +6277,7 @@ functions_mass_spectrometry <- function() {
                 list_names <- NULL
             }
             output_list <- list()
-            output_list <- foreach(i = 1:length(global_list), .packages = c("weights", "MALDIquant"), .export = c("peak_picking", "most intense signals", "align_and_filter_peaks")) %dopar% {
+            output_list <- foreach(i = 1:length(global_list), .packages = c("weights", "MALDIquant"), .export = c("peak_picking", "most_intense_signals", "align_and_filter_peaks", "align_spectra", "preprocess_spectra")) %dopar% {
                 output_list[[i]] <- comparison_sample_db_subfunction_correlation(global_list[[i]])
             }
             names(output_list) <- list_names
@@ -6691,7 +6755,7 @@ functions_mass_spectrometry <- function() {
                 list_names <- NULL
             }
             output_list <- list()
-            output_list <- foreach(i = 1:length(global_list), .packages = "MALDIquant", .export = c("peak_picking", "most intense signals", "align_and_filter_peaks")) %dopar% {
+            output_list <- foreach(i = 1:length(global_list), .packages = "MALDIquant", .export = c("peak_picking", "most_intense_signals", "align_and_filter_peaks", "align_spectra", "preprocess_spectra")) %dopar% {
                 output_list[[i]] <- comparison_sample_db_subfunction_intensity(global_list[[i]])
             }
             names(output_list) <- list_names
@@ -7017,7 +7081,7 @@ functions_mass_spectrometry <- function() {
                 list_names <- NULL
             }
             output_list <- list()
-            output_list <- foreach(i = 1:length(global_list), .packages = "MALDIquant", .export = c("peak_picking", "most intense signals", "align_and_filter_peaks")) %dopar% {
+            output_list <- foreach(i = 1:length(global_list), .packages = "MALDIquant", .export = c("peak_picking", "most_intense_signals", "align_and_filter_peaks", "align_spectra", "preprocess_spectra")) %dopar% {
                 output_list[[i]] <- comparison_sample_db_subfunction_similarity_index(global_list[[i]])
             }
             names(output_list) <- list_names
@@ -8492,6 +8556,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8532,7 +8597,7 @@ ms_pixel_typer <- function() {
     # In the debugging phase, run the whole code block within the {}, like as if the script was directly sourced from the file.
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.16.0"
+    R_script_version <- "2017.06.19.0"
     ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
     force_update <- FALSE
     ### GitHub URL where the R file is
@@ -9130,7 +9195,17 @@ ms_pixel_typer <- function() {
             file_type_export_matrix <- "csv"
         }
         if (file_type_export_matrix == "xls" || file_type_export_matrix == "xlsx") {
-            install_and_load_required_packages("XLConnect")
+            # Try to install the XLConnect (it will fail if Java is not installed)
+            Java_is_installed <- FALSE
+            try({
+                install_and_load_required_packages("XLConnect")
+                Java_is_installed <- TRUE
+            }, silent = TRUE)
+            # If it didn't install successfully, set to CSV
+            if (Java_is_installed == FALSE) {
+                tkmessageBox(title = "Java not installed", message = "Java is not installed, therefore the package XLConnect cannot be installed and loaded.\nThe output format is switched back to CSV", icon = "warning")
+                file_type_export_matrix <- "csv"
+            }
         }
         # Escape the function
         file_type_export_matrix <<- file_type_export_matrix
@@ -10009,3 +10084,4 @@ functions_mass_spectrometry()
 
 ### Run the function
 ms_pixel_typer()
+
