@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
     
-    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.19 ################
+    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.20 ################
     # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
     
     
@@ -183,7 +183,7 @@ functions_mass_spectrometry <- function() {
     ########################################################### ENSEMBLE VOTE MATRIX
     # The function takes as input the result matrix of an ensemble classification: each row is an observation/spectrum (patient or pixel) and each column is the predicted class of that observation by one model.
     # The function returns a single column matrix with the ensemble classification results computed according to the input parameters (such as vote weights and method).
-    ensemble_vote_classification <<- function(classification_matrix, class_list = NULL, decision_method = "majority", vote_weights = "equal", classification_probabilities_list = NULL, performance_parameter_list = NULL, type_of_validation_for_performance_estimation = "cv") {
+    ensemble_vote_classification <<- function(classification_matrix, class_list = NULL, weighted_decision_method = "bayesian probabilities", classification_probabilities_list = NULL, performance_parameter_list = NULL, type_of_validation_for_performance_estimation = "cv") {
         ### Class list
         # Retrieve the class list according to the present classes (if not specified)
         if (is.null(class_list) || length(class_list) == 0) {
@@ -200,7 +200,7 @@ functions_mass_spectrometry <- function() {
         }
         ########## Vote
         ##### Majority vote: equal weights
-        if (decision_method == "majority" && vote_weights == "equal") {
+        if (weighted_decision_method == "unweighted majority") {
             # Function for matrix apply (x = row)
             majority_vote_function <- function(x, class_list) {
                 # Generate the vote vector (same length as the class list, with the number of the votes for each class, labeled)
@@ -222,7 +222,7 @@ functions_mass_spectrometry <- function() {
             # For each spectrum (matrix row), establish the final majority vote
             classification_ensemble_matrix <- cbind(apply(X = classification_matrix, MARGIN = 1, FUN = function(x) majority_vote_function(x, class_list)))
             colnames(classification_ensemble_matrix) <- "Ensemble classification"
-        } else if (decision_method == "majority" && vote_weights == "class assignment probabilities" && (!is.null(classification_probabilities_list) && is.list(classification_probabilities_list) && length(classification_probabilities_list) > 0)) {
+        } else if (weighted_decision_method == "class assignment probabilities" && (!is.null(classification_probabilities_list) && is.list(classification_probabilities_list) && length(classification_probabilities_list) > 0)) {
             ##### Majority vote: class assignment probabilities
             ## Generate a list in which each element (named according to the pixel/spectrum name) is a vector containing the probability for the assigned class: each element of the vector is a probability, which is associated to the name of the predicted class.
             pixel_probabilities_list <- list()
@@ -269,7 +269,7 @@ functions_mass_spectrometry <- function() {
                 }
             }
             colnames(classification_ensemble_matrix) <- "Ensemble classification"
-        } else if (decision_method == "majority" && vote_weights == "bayesian probabilities" && (!is.null(performance_parameter_list) && is.list(performance_parameter_list) && length(performance_parameter_list) > 0)) {
+        } else if (weighted_decision_method == "bayesian probabilities" && (!is.null(performance_parameter_list) && is.list(performance_parameter_list) && length(performance_parameter_list) > 0)) {
             ##### Majority vote: bayesian probabilities
             ## Initialize the final classification ensemble matrix
             classification_ensemble_matrix <- NULL
@@ -4009,7 +4009,7 @@ functions_mass_spectrometry <- function() {
     # The function outputs a list containing: a matrix with the classification (pixel-by-pixel and/or profile), MS images with the pixel-by-pixel classification, a matrix with the ensemble classification (pixel-by-pixel and/or profile), MS images with the pixel-by-pixel ensemble classification and the plot of the average spectrum with red bars to indicate the signals used for classification.
     # Parallel computation implemented.
     # It outputs NULL values if the classification cannot be performed due to incompatibilities between the model features and the spectral features.
-    spectral_classification <<- function(spectra_path, filepath_R = NULL, model_list, model_performance_parameter_list = NULL, classification_mode = c("pixel", "profile"), peak_picking_algorithm = "SuperSmoother", deisotope_peaklist = FALSE, preprocessing_parameters = list(mass_range = c(4000,15000), transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL), tof_mode = "linear", allow_parallelization = FALSE, decision_method_ensemble = "majority", vote_weights_ensemble = c("equal", "class assignment probabilities"), pixel_grouping = c("single", "moving window average", "graph", "hca"), moving_window_size = 5, number_of_hca_nodes = 10, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 10, iterations_with_no_change_GA = 5, seed = 12345, classification_mode_graph = c("average spectra", "single spectra clique"), features_to_use_for_graph = c("all", "model"), plot_figures = TRUE, plot_graphs = TRUE, plot_legends = c("sample name", "legend", "plot name"), progress_bar = NULL, tolerance_ppm = NULL) {
+    spectral_classification <<- function(spectra_path, filepath_R = NULL, model_list, model_performance_parameter_list = NULL, classification_mode = c("pixel", "profile"), peak_picking_algorithm = "SuperSmoother", deisotope_peaklist = FALSE, preprocessing_parameters = list(mass_range = c(4000,15000), transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL), tof_mode = "linear", allow_parallelization = FALSE, decision_method_ensemble = c("unweighted majority", "class assignment probabilities", "bayesian probabilities"), pixel_grouping = c("single", "moving window average", "graph", "hca"), moving_window_size = 5, number_of_hca_nodes = 10, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 10, iterations_with_no_change_GA = 5, seed = 12345, classification_mode_graph = c("average spectra", "single spectra clique"), features_to_use_for_graph = c("all", "model"), plot_figures = TRUE, plot_graphs = TRUE, plot_legends = c("sample name", "legend", "plot name"), progress_bar = NULL, tolerance_ppm = NULL) {
         ### Install and load the required packages
         require(MALDIquant)
         require(MALDIquantForeign)
@@ -4192,45 +4192,141 @@ functions_mass_spectrometry <- function() {
             ########## Ensemble results
             if ("pixel" %in% classification_mode) {
                 if (length(list_of_models) > 2 && !is.null(final_result_matrix_msi_patient) && classes_are_the_same_for_each_model == TRUE && outcomes_are_the_same_for_each_model == TRUE) {
-                    ### Classification matrix
-                    classification_ensemble_matrix_msi <- ensemble_vote_classification(classification_matrix = final_result_matrix_msi_patient, class_list = model_list[[1]]$class_list, decision_method = decision_method_ensemble, vote_weights = vote_weights_ensemble, classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list, type_of_validation_for_performance_estimation = "cv")
-                    # Store the ensemble classification matrix in the final output list
-                    classification_ensemble_matrix_msi_all[[sample_name]] <- classification_ensemble_matrix_msi
-                    ### Molecular image of the classification
-                    # Generate the "predicted classes" vector from the ensemble classification matrix
-                    predicted_classes <- as.character(classification_ensemble_matrix_msi)
-                    names(predicted_classes) <- rownames(classification_ensemble_matrix_msi)
-                    # Define the class as number depending on the outcome
-                    outcome_and_class <- outcome_and_class_to_MS(class_list = model_list[[1]]$class_list, outcome_list = model_list[[1]]$outcome_list, class_vector = predicted_classes)
-                    # Replace the spectra intensities with the class number for plotting purposes
-                    class_as_number <- outcome_and_class$class_vector_as_numeric
-                    spectra_for_plotting <- sample_spectra
-                    if (is.null(names(spectra_for_plotting)) || is.null(names(class_as_number))) {
-                        for (s in 1:length(spectra_for_plotting)) {
-                            spectra_for_plotting[[s]]@intensity <- rep(class_as_number[s], length(spectra_for_plotting[[s]]@intensity))
+                    ##### Unweighted majority
+                    if ("unweighted majority" %in% decision_method_ensemble) {
+                        ### Classification matrix
+                        classification_ensemble_matrix_msi <- ensemble_vote_classification(classification_matrix = final_result_matrix_msi_patient, class_list = model_list[[1]]$class_list, weighted_decision_method = "unweighted majority", classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list, type_of_validation_for_performance_estimation = "cv")
+                        # Store the ensemble classification matrix in the final output list
+                        classification_ensemble_matrix_msi_all[[sample_name]][["unweighted majority"]] <- classification_ensemble_matrix_msi
+                        ### Molecular image of the classification
+                        # Generate the "predicted classes" vector from the ensemble classification matrix
+                        predicted_classes <- as.character(classification_ensemble_matrix_msi)
+                        names(predicted_classes) <- rownames(classification_ensemble_matrix_msi)
+                        # Define the class as number depending on the outcome
+                        outcome_and_class <- outcome_and_class_to_MS(class_list = model_list[[1]]$class_list, outcome_list = model_list[[1]]$outcome_list, class_vector = predicted_classes)
+                        # Replace the spectra intensities with the class number for plotting purposes
+                        class_as_number <- outcome_and_class$class_vector_as_numeric
+                        spectra_for_plotting <- sample_spectra
+                        if (is.null(names(spectra_for_plotting)) || is.null(names(class_as_number))) {
+                            for (s in 1:length(spectra_for_plotting)) {
+                                spectra_for_plotting[[s]]@intensity <- rep(class_as_number[s], length(spectra_for_plotting[[s]]@intensity))
+                            }
+                        } else {
+                            for (s in 1:length(spectra_for_plotting)) {
+                                spectra_for_plotting[[s]]@intensity <- rep(class_as_number[names(spectra_for_plotting)[s]], length(spectra_for_plotting[[s]]@intensity))
+                            }
                         }
+                        # Generate the MS images
+                        slices <- msiSlices(spectra_for_plotting, center = spectra_for_plotting[[1]]@mass[(length(spectra_for_plotting[[1]]@mass)/2)], tolerance = 1, adjust = TRUE, method = "median")
+                        plotMsiSlice(slices, legend = FALSE, scale = F)
+                        # Define the legend
+                        if ("legend" %in% plot_legends) {
+                            legend_text <- outcome_and_class$legend_text
+                            legend_fill <- outcome_and_class$legend_fill
+                            legend(x = "bottomright", legend = legend_text, fill = legend_fill, xjust = 0.5, yjust = 0.5)
+                        }
+                        if ("sample name" %in% plot_legends) {
+                            legend(x = "topright", legend = spectra_for_plotting[[1]]@metaData$file[1], xjust = 0.5, yjust = 0.5)
+                        }
+                        if ("plot name" %in% plot_legends) {
+                            legend(x = "topleft", legend = "Ensemble classifier", xjust = 0.5, yjust = 0.5)
+                        }
+                        # Store the plot into the list of images
+                        classification_ensemble_ms_image_list[[sample_name]][["unweighted majority"]] <- recordPlot()
                     } else {
-                        for (s in 1:length(spectra_for_plotting)) {
-                            spectra_for_plotting[[s]]@intensity <- rep(class_as_number[names(spectra_for_plotting)[s]], length(spectra_for_plotting[[s]]@intensity))
+                        classification_ensemble_matrix_msi_all[[sample_name]][["unweighted majority"]] <- NULL
+                        classification_ensemble_ms_image_list[[sample_name]][["unweighted majority"]] <- NULL
+                    }
+                    ##### Class assignment probabilities
+                    if ("class assignment probabilities" %in% decision_method_ensemble) {
+                        ### Classification matrix
+                        classification_ensemble_matrix_msi <- ensemble_vote_classification(classification_matrix = final_result_matrix_msi_patient, class_list = model_list[[1]]$class_list, weighted_decision_method = "class assignment probabilities", classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list, type_of_validation_for_performance_estimation = "cv")
+                        # Store the ensemble classification matrix in the final output list
+                        classification_ensemble_matrix_msi_all[[sample_name]][["class assignment probabilities"]] <- classification_ensemble_matrix_msi
+                        ### Molecular image of the classification
+                        # Generate the "predicted classes" vector from the ensemble classification matrix
+                        predicted_classes <- as.character(classification_ensemble_matrix_msi)
+                        names(predicted_classes) <- rownames(classification_ensemble_matrix_msi)
+                        # Define the class as number depending on the outcome
+                        outcome_and_class <- outcome_and_class_to_MS(class_list = model_list[[1]]$class_list, outcome_list = model_list[[1]]$outcome_list, class_vector = predicted_classes)
+                        # Replace the spectra intensities with the class number for plotting purposes
+                        class_as_number <- outcome_and_class$class_vector_as_numeric
+                        spectra_for_plotting <- sample_spectra
+                        if (is.null(names(spectra_for_plotting)) || is.null(names(class_as_number))) {
+                            for (s in 1:length(spectra_for_plotting)) {
+                                spectra_for_plotting[[s]]@intensity <- rep(class_as_number[s], length(spectra_for_plotting[[s]]@intensity))
+                            }
+                        } else {
+                            for (s in 1:length(spectra_for_plotting)) {
+                                spectra_for_plotting[[s]]@intensity <- rep(class_as_number[names(spectra_for_plotting)[s]], length(spectra_for_plotting[[s]]@intensity))
+                            }
                         }
+                        # Generate the MS images
+                        slices <- msiSlices(spectra_for_plotting, center = spectra_for_plotting[[1]]@mass[(length(spectra_for_plotting[[1]]@mass)/2)], tolerance = 1, adjust = TRUE, method = "median")
+                        plotMsiSlice(slices, legend = FALSE, scale = F)
+                        # Define the legend
+                        if ("legend" %in% plot_legends) {
+                            legend_text <- outcome_and_class$legend_text
+                            legend_fill <- outcome_and_class$legend_fill
+                            legend(x = "bottomright", legend = legend_text, fill = legend_fill, xjust = 0.5, yjust = 0.5)
+                        }
+                        if ("sample name" %in% plot_legends) {
+                            legend(x = "topright", legend = spectra_for_plotting[[1]]@metaData$file[1], xjust = 0.5, yjust = 0.5)
+                        }
+                        if ("plot name" %in% plot_legends) {
+                            legend(x = "topleft", legend = "Ensemble classifier", xjust = 0.5, yjust = 0.5)
+                        }
+                        # Store the plot into the list of images
+                        classification_ensemble_ms_image_list[[sample_name]][["class assignment probabilities"]] <- recordPlot()
+                    } else {
+                        classification_ensemble_matrix_msi_all[[sample_name]][["class assignment probabilities"]] <- NULL
+                        classification_ensemble_ms_image_list[[sample_name]][["class assignment probabilities"]] <- NULL
                     }
-                    # Generate the MS images
-                    slices <- msiSlices(spectra_for_plotting, center = spectra_for_plotting[[1]]@mass[(length(spectra_for_plotting[[1]]@mass)/2)], tolerance = 1, adjust = TRUE, method = "median")
-                    plotMsiSlice(slices, legend = FALSE, scale = F)
-                    # Define the legend
-                    if ("legend" %in% plot_legends) {
-                        legend_text <- outcome_and_class$legend_text
-                        legend_fill <- outcome_and_class$legend_fill
-                        legend(x = "bottomright", legend = legend_text, fill = legend_fill, xjust = 0.5, yjust = 0.5)
+                    ##### Class assignment probabilities
+                    if ("bayesian probabilities" %in% decision_method_ensemble) {
+                        ### Classification matrix
+                        classification_ensemble_matrix_msi <- ensemble_vote_classification(classification_matrix = final_result_matrix_msi_patient, class_list = model_list[[1]]$class_list, weighted_decision_method = "bayesian probabilities", classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list, type_of_validation_for_performance_estimation = "cv")
+                        # Store the ensemble classification matrix in the final output list
+                        classification_ensemble_matrix_msi_all[[sample_name]][["bayesian probabilities"]] <- classification_ensemble_matrix_msi
+                        ### Molecular image of the classification
+                        # Generate the "predicted classes" vector from the ensemble classification matrix
+                        predicted_classes <- as.character(classification_ensemble_matrix_msi)
+                        names(predicted_classes) <- rownames(classification_ensemble_matrix_msi)
+                        # Define the class as number depending on the outcome
+                        outcome_and_class <- outcome_and_class_to_MS(class_list = model_list[[1]]$class_list, outcome_list = model_list[[1]]$outcome_list, class_vector = predicted_classes)
+                        # Replace the spectra intensities with the class number for plotting purposes
+                        class_as_number <- outcome_and_class$class_vector_as_numeric
+                        spectra_for_plotting <- sample_spectra
+                        if (is.null(names(spectra_for_plotting)) || is.null(names(class_as_number))) {
+                            for (s in 1:length(spectra_for_plotting)) {
+                                spectra_for_plotting[[s]]@intensity <- rep(class_as_number[s], length(spectra_for_plotting[[s]]@intensity))
+                            }
+                        } else {
+                            for (s in 1:length(spectra_for_plotting)) {
+                                spectra_for_plotting[[s]]@intensity <- rep(class_as_number[names(spectra_for_plotting)[s]], length(spectra_for_plotting[[s]]@intensity))
+                            }
+                        }
+                        # Generate the MS images
+                        slices <- msiSlices(spectra_for_plotting, center = spectra_for_plotting[[1]]@mass[(length(spectra_for_plotting[[1]]@mass)/2)], tolerance = 1, adjust = TRUE, method = "median")
+                        plotMsiSlice(slices, legend = FALSE, scale = F)
+                        # Define the legend
+                        if ("legend" %in% plot_legends) {
+                            legend_text <- outcome_and_class$legend_text
+                            legend_fill <- outcome_and_class$legend_fill
+                            legend(x = "bottomright", legend = legend_text, fill = legend_fill, xjust = 0.5, yjust = 0.5)
+                        }
+                        if ("sample name" %in% plot_legends) {
+                            legend(x = "topright", legend = spectra_for_plotting[[1]]@metaData$file[1], xjust = 0.5, yjust = 0.5)
+                        }
+                        if ("plot name" %in% plot_legends) {
+                            legend(x = "topleft", legend = "Ensemble classifier", xjust = 0.5, yjust = 0.5)
+                        }
+                        # Store the plot into the list of images
+                        classification_ensemble_ms_image_list[[sample_name]][["bayesian probabilities"]] <- recordPlot()
+                    } else {
+                        classification_ensemble_matrix_msi_all[[sample_name]][["bayesian probabilities"]] <- NULL
+                        classification_ensemble_ms_image_list[[sample_name]][["bayesian probabilities"]] <- NULL
                     }
-                    if ("sample name" %in% plot_legends) {
-                        legend(x = "topright", legend = spectra_for_plotting[[1]]@metaData$file[1], xjust = 0.5, yjust = 0.5)
-                    }
-                    if ("plot name" %in% plot_legends) {
-                        legend(x = "topleft", legend = "Ensemble classifier", xjust = 0.5, yjust = 0.5)
-                    }
-                    # Store the plot into the list of images
-                    classification_ensemble_ms_image_list[[sample_name]] <- recordPlot()
                 } else {
                     classification_ensemble_matrix_msi_all[[sample_name]] <- NULL
                     classification_ensemble_ms_image_list[[sample_name]] <- NULL
@@ -4239,7 +4335,7 @@ functions_mass_spectrometry <- function() {
             if ("profile" %in% classification_mode) {
                 if (length(list_of_models) > 2 && !is.null(final_result_matrix_profile_patient) && classes_are_the_same_for_each_model == TRUE && outcomes_are_the_same_for_each_model == TRUE) {
                     ########## Ensemble results
-                    classification_ensemble_matrix_profile <- ensemble_vote_classification(classification_matrix = final_result_matrix_profile_patient, class_list = model_list[[1]]$class_list, decision_method = decision_method_ensemble, vote_weights = vote_weights_ensemble, classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list, type_of_validation_for_performance_estimation = "cv")
+                    classification_ensemble_matrix_profile <- ensemble_vote_classification(classification_matrix = final_result_matrix_profile_patient, class_list = model_list[[1]]$class_list, weighted_decision_method = decision_method_ensemble, classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list, type_of_validation_for_performance_estimation = "cv")
                     # Store the ensemble classification matrix in the final output list
                     if (is.null(classification_ensemble_matrix_profile_all)) {
                         classification_ensemble_matrix_profile_all <- classification_ensemble_matrix_profile
@@ -5339,8 +5435,8 @@ functions_mass_spectrometry <- function() {
                 performance_parameter_vector[["specificity"]] <- true_negatives / (true_negatives + false_positives)
                 performance_parameter_vector[["TPR"]] <- performance_parameter_vector[["sensitivity"]]
                 performance_parameter_vector[["TNR"]] <- performance_parameter_vector[["specificity"]]
-                performance_parameter_vector[["FPR"]] <- false_positives / true_negatives + false_positives
-                performance_parameter_vector[["FNR"]] <- false_negatives / true_positives + false_negatives
+                performance_parameter_vector[["FPR"]] <- false_positives / (true_negatives + false_positives)
+                performance_parameter_vector[["FNR"]] <- false_negatives / (true_positives + false_negatives)
                 performance_parameter_vector[["accuracy"]] <- (true_positives + true_negatives) / (true_positives + true_negatives + false_positives + false_negatives)
                 performance_parameter_vector[["PPV"]] <- true_positives / (true_positives + false_positives)
                 performance_parameter_vector[["NPV"]] <- true_negatives / (true_negatives + false_negatives)
@@ -8557,6 +8653,8 @@ functions_mass_spectrometry <- function() {
 
 
 
+
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8597,7 +8695,7 @@ ms_pixel_typer <- function() {
     # In the debugging phase, run the whole code block within the {}, like as if the script was directly sourced from the file.
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.19.0"
+    R_script_version <- "2017.06.20.2"
     ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
     force_update <- FALSE
     ### GitHub URL where the R file is
@@ -8607,7 +8705,7 @@ ms_pixel_typer <- function() {
     ### Name of the file when downloaded
     script_file_name <- "MS PIXEL TYPER"
     # Change log
-    change_log <- "1. New vote weights!!\n2. Fixed GUI\n3. Parallel now in foreach!\n4. Allow to set tolerance in ppm"
+    change_log <- "1. New vote weights!!\n2. Fixed GUI\n3. Parallel now in foreach!\n4. Allow to set tolerance in ppm\n5. Multiple choice in ensemble vote"
     
     
     
@@ -8657,8 +8755,7 @@ ms_pixel_typer <- function() {
     RData_file_integrity <- FALSE
     classification_mode <- "pixel"
     pixel_grouping <- "single"
-    decision_method_ensemble <- "majority"
-    vote_weights_ensemble <- "equal"
+    decision_method_ensemble <- "bayesian probabilities"
     number_of_hca_nodes <- 4
     moving_window_size <- 5
     files_dumped <- FALSE
@@ -8687,7 +8784,7 @@ ms_pixel_typer <- function() {
     peak_deisotoping_enveloping_value <- "None"
     RData_file_integrity_value <- "NO RDATA FILE\nSELECTED"
     classification_mode_value <- "pixel"
-    decision_method_ensemble_value <- paste0(decision_method_ensemble, "\n(", vote_weights_ensemble, ")")
+    decision_method_ensemble_value <- "Bayesian probs"
     
     
     
@@ -9453,37 +9550,59 @@ ms_pixel_typer <- function() {
     ##### Decision method ensemble
     decision_method_ensemble_choice <- function() {
         # Catch the value from the menu
-        decision_method_ensemble <- select.list(c("majority"), title = "Decision method", multiple = FALSE, preselect = "majority")
+        decision_method_ensemble_input <- select.list(c("Unweighted majority", "Class assignment probabilities", "Bayesian probabilities"), title = "Weighted Decision Method", multiple = TRUE, preselect = "Bayesian probabilities")
         # Raise the focus on the main window
         tkraise(window)
+        # Initialize
+        decision_method_ensemble <- character()
         # Default
-        if (decision_method_ensemble == "") {
-            decision_method_ensemble <- "majority"
+        if (length(decision_method_ensemble_input) == 1 && decision_method_ensemble_input == "") {
+            decision_method_ensemble <- "bayesian probabilities"
+            decision_method_ensemble_value <- "Bayesian probs"
+        } else {
+            if ("Bayesian probabilities" %in% decision_method_ensemble_input) {
+                decision_method_ensemble <- append(decision_method_ensemble, "bayesian probabilities")
+                decision_method_ensemble_value_bayesian_probs <- "Bayesian probs"
+            }
+            if ("Unweighted majority" %in% decision_method_ensemble_input) {
+                decision_method_ensemble <- append(decision_method_ensemble, "unweighted majority")
+                decision_method_ensemble_value_unweighted_maj <- "Majority"
+            }
+            if ("Class assignment probabilities" %in% decision_method_ensemble_input) {
+                decision_method_ensemble <- append(decision_method_ensemble, "class assignment probabilities")
+                decision_method_ensemble_value_class_probs <- "Class probs"
+            }
         }
-        # Vote weights
-        if (decision_method_ensemble == "majority") {
-            # Catch the value from the menu
-            vote_weights_ensemble <- select.list(c("equal", "class assignment probabilities", "bayesian probabilities"), title = "Vote weights", multiple = FALSE, preselect = "bayesian probabilities")
-            # Raise the focus on the main window
-            tkraise(window)
-            # Default
-            if (vote_weights_ensemble == "") {
-                vote_weights_ensemble <- "equal"
+        
+        # Displaying value
+        decision_method_ensemble_value <- NULL
+        for (s in 1:length(decision_method_ensemble)) {
+            if (is.null(decision_method_ensemble_value)) {
+                if (decision_method_ensemble[s] == "unweighted majority") {
+                    decision_method_ensemble_value <- decision_method_ensemble_value_unweighted_maj
+                } else if (decision_method_ensemble[s] == "class assignment probabilities") {
+                    decision_method_ensemble_value <- decision_method_ensemble_value_class_probs
+                } else if (decision_method_ensemble[s] == "bayesian probabilities") {
+                    decision_method_ensemble_value <- decision_method_ensemble_value_bayesian_probs
+                } else {
+                    decision_method_ensemble_value <- as.character(decision_method_ensemble[s])
+                }
+            } else {
+                if (decision_method_ensemble[s] == "unweighted majority") {
+                    decision_method_ensemble_value <- as.character(paste0(decision_method_ensemble_value, "\n", decision_method_ensemble_value_unweighted_maj))
+                } else if (decision_method_ensemble[s] == "class assignment probabilities") {
+                    decision_method_ensemble_value <- as.character(paste0(decision_method_ensemble_value, "\n", decision_method_ensemble_value_class_probs))
+                } else if (decision_method_ensemble[s] == "bayesian probabilities") {
+                    decision_method_ensemble_value <- as.character(paste0(decision_method_ensemble_value, "\n", decision_method_ensemble_value_bayesian_probs))
+                } else {
+                    decision_method_ensemble_value <- as.character(paste0(decision_method_ensemble_value, "\n", decision_method_ensemble[s]))
+                }
             }
-            # Value
-            vote_weights_ensemble_value <- vote_weights_ensemble
-            if (vote_weights_ensemble_value == "class assignment probabilities") {
-                vote_weights_ensemble_value <- "class probs"
-            } else if (vote_weights_ensemble_value == "bayesian probabilities") {
-                vote_weights_ensemble_value <- "bayesian probs"
-            }
-            decision_method_ensemble_value <- paste0(decision_method_ensemble, "\n(", vote_weights_ensemble_value, ")")
         }
         # Value label
-        decision_method_ensemble_value_label <- tklabel(window, text = decision_method_ensemble_value, font = label_font, bg = "white", width = 20, height = 2)
+        decision_method_ensemble_value_label <- tklabel(window, text = decision_method_ensemble_value, font = label_font, bg = "white", width = 20, height = 4)
         tkgrid(decision_method_ensemble_value_label, row = 3, column = 3)
         # Escape the function
-        vote_weights_ensemble <<- vote_weights_ensemble
         decision_method_ensemble <<- decision_method_ensemble
         decision_method_ensemble_value <<- decision_method_ensemble_value
         # Raise the focus on the main window
@@ -9541,7 +9660,7 @@ ms_pixel_typer <- function() {
                 setTkProgressBar(program_progress_bar, value = 0, title = NULL, label = "0 %")
                 setTkProgressBar(program_progress_bar, value = 0.25, title = "Performing classification...", label = "25 %")
                 ########## Run the classification function
-                classification_of_patients <- spectral_classification(spectra_path = filepath_import, filepath_R = filepath_R, model_list = NULL, model_performance_parameter_list = NULL, classification_mode = classification_mode, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = peak_deisotoping, preprocessing_parameters = preprocessing_parameters, tof_mode = tof_mode, allow_parallelization = allow_parallelization, decision_method_ensemble = decision_method_ensemble, vote_weights_ensemble = vote_weights_ensemble, pixel_grouping = pixel_grouping, moving_window_size = moving_window_size, number_of_hca_nodes = number_of_hca_nodes, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 50, iterations_with_no_change_GA = 5, seed = 12345, plot_figures = TRUE, plot_graphs = TRUE, plot_legends = plot_legends, tolerance_ppm = tolerance_ppm)
+                classification_of_patients <- spectral_classification(spectra_path = filepath_import, filepath_R = filepath_R, model_list = NULL, model_performance_parameter_list = NULL, classification_mode = classification_mode, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = peak_deisotoping, preprocessing_parameters = preprocessing_parameters, tof_mode = tof_mode, allow_parallelization = allow_parallelization, decision_method_ensemble = decision_method_ensemble, pixel_grouping = pixel_grouping, moving_window_size = moving_window_size, number_of_hca_nodes = number_of_hca_nodes, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 50, iterations_with_no_change_GA = 5, seed = 12345, plot_figures = TRUE, plot_graphs = TRUE, plot_legends = plot_legends, tolerance_ppm = tolerance_ppm)
                 # Escape the function
                 classification_of_patients <<- classification_of_patients
                 setTkProgressBar(program_progress_bar, value = 0.75, title = "Saving files...", label = "75 %")
@@ -9582,55 +9701,25 @@ ms_pixel_typer <- function() {
             ### Go to the working directory
             setwd(output_folder)
             ##### Automatically create a subfolder with all the results
-            ## Check if such subfolder exists
-            list_of_directories <- list.dirs(output_folder, full.names = FALSE, recursive = FALSE)
-            ## Check the presence of a CLASSIFICATION folder
-            CLASSIFICATION_folder_presence <- FALSE
-            if (length(list_of_directories) > 0) {
-                for (dr in 1:length(list_of_directories)) {
-                    if (length(grep("CLASSIFICATION", list_of_directories[dr], fixed = TRUE)) > 0) {
-                        CLASSIFICATION_folder_presence <- TRUE
-                    }
-                }
+            # Add the date and time to the filename
+            current_date <- unlist(strsplit(as.character(Sys.time()), " "))[1]
+            current_date_split <- unlist(strsplit(current_date, "-"))
+            current_time <- unlist(strsplit(as.character(Sys.time()), " "))[2]
+            current_time_split <- unlist(strsplit(current_time, ":"))
+            final_date <- ""
+            for (x in 1:length(current_date_split)) {
+                final_date <- paste0(final_date, current_date_split[x])
             }
-            ## If it present...
-            if (isTRUE(CLASSIFICATION_folder_presence)) {
-                ## Extract the number after the STATISTICS
-                # Number for the newly created folder
-                CLASSIFICATION_new_folder_number <- 0
-                # List of already present numbers
-                CLASSIFICATION_present_folder_numbers <- integer()
-                # For each folder present...
-                for (dr in 1:length(list_of_directories)) {
-                    # If it is named CLASSIFICATION
-                    if (length(grep("CLASSIFICATION", list_of_directories[dr], fixed = TRUE)) > 0) {
-                        # Split the name
-                        CLASSIFICATION_present_folder_split <- unlist(strsplit(list_of_directories[dr], "CLASSIFICATION"))
-                        # Add the number to the list of CLASSIFICATION numbers (if it is NA it means that what was following the CLASSIFICATION was not a number)
-                        try({
-                            if (!is.na(as.integer(CLASSIFICATION_present_folder_split[2]))) {
-                                CLASSIFICATION_present_folder_numbers <- append(CLASSIFICATION_present_folder_numbers, as.integer(CLASSIFICATION_present_folder_split[2]))
-                            } else {
-                                CLASSIFICATION_present_folder_numbers <- append(CLASSIFICATION_present_folder_numbers, as.integer(0))
-                            }
-                        }, silent = TRUE)
-                    }
-                }
-                # Sort the STATISTICS folder numbers
-                try(CLASSIFICATION_present_folder_numbers <- sort(CLASSIFICATION_present_folder_numbers))
-                # The new folder number will be the greater + 1
-                try(CLASSIFICATION_new_folder_number <- CLASSIFICATION_present_folder_numbers[length(CLASSIFICATION_present_folder_numbers)] + 1)
-                # Generate the new subfolder
-                subfolder <- file.path(output_folder, paste("CLASSIFICATION", CLASSIFICATION_new_folder_number))
-                # Create the subfolder
-                dir.create(subfolder)
-            } else {
-                # If it not present...
-                # Create the folder where to dump the files and go to it...
-                subfolder <- file.path(output_folder, paste("CLASSIFICATION", "1"))
-                # Create the subfolder
-                dir.create(subfolder)
+            final_time <- ""
+            for (x in 1:length(current_time_split)) {
+                final_time <- paste0(final_time, current_time_split[x])
             }
+            final_date_time <- paste(final_date, final_time, sep = "_")
+            CLASSIFICATION_subfolder <- paste0("CLASSIFICATION", " (", final_date_time, ")")
+            # Generate the new subfolder
+            subfolder <- file.path(output_folder, CLASSIFICATION_subfolder)
+            # Create the subfolder
+            dir.create(subfolder)
             # Go to the new working directory
             setwd(subfolder)
             ##### Dump the files
@@ -9736,23 +9825,29 @@ ms_pixel_typer <- function() {
                 # PNG
                 if (file_type_export_images == "png") {
                     try({
-                        png(filename = paste("Ensemble Pixel-by-pixel classification", ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
-                        replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]])
-                        dev.off()
+                        for (l in 1:length(classification_of_patients$classification_ensemble_ms_image_list[[p]])) {
+                            png(filename = paste0("Ensemble Pixel-by-pixel classification (", names(classification_of_patients$classification_ensemble_ms_image_list[[p]])[l], ").", file_type_export_images), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
+                            replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]][[l]])
+                            dev.off()
+                        }
                     }, silent = TRUE)
                 } else if (file_type_export_images == "tiff") {
                     # TIFF
                     try({
-                        tiff(filename = paste("Ensemble Pixel-by-pixel classification", ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
-                        replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]])
-                        dev.off()
+                        for (l in 1:length(classification_of_patients$classification_ensemble_ms_image_list[[p]])) {
+                            tiff(filename = paste0("Ensemble Pixel-by-pixel classification (", names(classification_of_patients$classification_ensemble_ms_image_list[[p]])[l], ").", file_type_export_images), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150)
+                            replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]][[l]])
+                            dev.off()
+                        }
                     }, silent = TRUE)
                 } else if (file_type_export_images == "jpg" || file_type_export_images == "jpeg") {
                     # JPEG
                     try({
-                        jpeg(filename = paste("Ensemble Pixel-by-pixel classification", ".", file_type_export_images, sep = ""), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150, quality = 100)
-                        replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]])
-                        dev.off()
+                        for (l in 1:length(classification_of_patients$classification_ensemble_ms_image_list[[p]])) {
+                            jpeg(filename = paste0("Ensemble Pixel-by-pixel classification (", names(classification_of_patients$classification_ensemble_ms_image_list[[p]])[l], ").", file_type_export_images), width = 1920, height = 1080, pointsize = 20, units = "px", res = 150, quality = 100)
+                            replayPlot(classification_of_patients$classification_ensemble_ms_image_list[[p]][[l]])
+                            dev.off()
+                        }
                     }, silent = TRUE)
                 }
                 ## Average spectrum with bars
@@ -10036,7 +10131,7 @@ ms_pixel_typer <- function() {
     allow_parallelization_value_label <- tklabel(window, text = allow_parallelization_value, font = label_font, bg = "white", width = 20)
     classification_mode_value_label <- tklabel(window, text = classification_mode_value, font = label_font, bg = "white", width = 20)
     RData_file_integrity_value_label <- tklabel(window, text = RData_file_integrity_value, font = label_font, bg = "white", width = 20)
-    decision_method_ensemble_value_label <- tklabel(window, text = decision_method_ensemble_value, font = label_font, bg = "white", width = 20, height = 2)
+    decision_method_ensemble_value_label <- tklabel(window, text = decision_method_ensemble_value, font = label_font, bg = "white", width = 20, height = 4)
     check_for_updates_value_label <- tklabel(window, text = check_for_updates_value, font = label_font, bg = "white", width = 20)
     
     #### Geometry manager
@@ -10084,4 +10179,3 @@ functions_mass_spectrometry()
 
 ### Run the function
 ms_pixel_typer()
-
