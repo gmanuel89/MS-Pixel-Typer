@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
     
-    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.28 ################
+    ################## FUNCTIONS - MASS SPECTROMETRY 2017.07.04 ################
     # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
     
     
@@ -24,7 +24,19 @@ functions_mass_spectrometry <- function() {
                 if ("RCurl" %in% installed.packages()[,1]) {
                     library(RCurl)
                 } else {
-                    install.packages("RCurl", repos = "http://cran.mirror.garr.it/mirrors/CRAN/", quiet = TRUE, verbose = FALSE)
+                    # Check for the personal local library presence before installing (~/R/packages/), then instlall in the local library
+                    if (Sys.info()[1] == "Windows") {
+                        if (length(grep("/Documents/", .libPaths()[1], fixed = TRUE)) == 0) {
+                            dir.create("~/R/libraries/")
+                            .libPaths("~/R/libraries/")
+                        }
+                    } else {
+                        if (base::startsWith(.libPaths()[1], "/usr/")) {
+                            dir.create("~/R/libraries/")
+                            .libPaths("~/R/libraries/")
+                        }
+                    }
+                    install.packages("RCurl", repos = "http://cran.mirror.garr.it/mirrors/CRAN/", quiet = TRUE, verbose = FALSE, lib = .libPaths()[1])
                     library(RCurl)
                 }
             }, silent = TRUE)
@@ -69,9 +81,33 @@ functions_mass_spectrometry <- function() {
             if (there_is_internet == TRUE) {
                 ##### If a repository is specified
                 if (repository != "" || !is.null(repository)) {
-                    update.packages(repos = repository, ask = FALSE, checkBuilt = TRUE, quiet = TRUE, verbose = FALSE)
+                    # Check for the personal local library presence before installing (~/R/packages/), then instlall in the local library
+                    if (Sys.info()[1] == "Windows") {
+                        if (length(grep("/Documents/", .libPaths()[1], fixed = TRUE)) == 0) {
+                            dir.create("~/R/libraries/")
+                            .libPaths("~/R/libraries/")
+                        }
+                    } else {
+                        if (base::startsWith(.libPaths()[1], "/usr/")) {
+                            dir.create("~/R/libraries/")
+                            .libPaths("~/R/libraries/")
+                        }
+                    }
+                    update.packages(repos = repository, ask = FALSE, checkBuilt = TRUE, quiet = TRUE, verbose = FALSE, lib.loc = .libPaths()[1])
                 } else {
-                    update.packages(ask = FALSE, checkBuilt = TRUE, quiet = TRUE, verbose = FALSE)
+                    # Check for the personal local library presence before installing (~/R/packages/), then instlall in the local library
+                    if (Sys.info()[1] == "Windows") {
+                        if (length(grep("/Documents/", .libPaths()[1], fixed = TRUE)) == 0) {
+                            dir.create("~/R/libraries/")
+                            .libPaths("~/R/libraries/")
+                        }
+                    } else {
+                        if (base::startsWith(.libPaths()[1], "/usr/")) {
+                            dir.create("~/R/libraries/")
+                            .libPaths("~/R/libraries/")
+                        }
+                    }
+                    update.packages(ask = FALSE, checkBuilt = TRUE, quiet = TRUE, verbose = FALSE, lib.loc = .libPaths()[1])
                 }
                 if (print_messages == TRUE) {
                     cat("\nPackages updated\n")
@@ -92,10 +128,34 @@ functions_mass_spectrometry <- function() {
             if (there_is_internet == TRUE) {
                 ### If a repository is specified
                 if (repository != "" || !is.null(repository)) {
-                    install.packages(missing_packages, repos = repository, quiet = TRUE, verbose = FALSE)
+                    # Check for the personal local library presence before installing (~/R/packages/), then instlall in the local library
+                    if (Sys.info()[1] == "Windows") {
+                        if (length(grep("/Documents/", .libPaths()[1], fixed = TRUE)) == 0) {
+                            dir.create("~/R/libraries/")
+                            .libPaths("~/R/libraries/")
+                        }
+                    } else {
+                        if (base::startsWith(.libPaths()[1], "/usr/")) {
+                            dir.create("~/R/libraries/")
+                            .libPaths("~/R/libraries/")
+                        }
+                    }
+                    install.packages(missing_packages, repos = repository, quiet = TRUE, verbose = FALSE, lib = .libPaths()[1])
                 } else {
                     ### If NO repository is specified
-                    install.packages(missing_packages, quiet = TRUE, verbose = FALSE)
+                    # Check for the personal local library presence before installing (~/R/packages/), then instlall in the local library
+                    if (Sys.info()[1] == "Windows") {
+                        if (length(grep("/Documents/", .libPaths()[1], fixed = TRUE)) == 0) {
+                            dir.create("~/R/libraries/")
+                            .libPaths("~/R/libraries/")
+                        }
+                    } else {
+                        if (base::startsWith(.libPaths()[1], "/usr/")) {
+                            dir.create("~/R/libraries/")
+                            .libPaths("~/R/libraries/")
+                        }
+                    }
+                    install.packages(missing_packages, quiet = TRUE, verbose = FALSE, lib = .libPaths()[1])
                 }
                 if (print_messages == TRUE) {
                     cat("\nAll the required packages have been installed\n")
@@ -8813,6 +8873,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8853,7 +8914,7 @@ ms_pixel_typer <- function() {
     # In the debugging phase, run the whole code block within the {}, like as if the script was directly sourced from the file.
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.29.0"
+    R_script_version <- "2017.07.04.0"
     ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
     force_update <- FALSE
     ### GitHub URL where the R file is
@@ -8863,7 +8924,7 @@ ms_pixel_typer <- function() {
     ### Name of the file when downloaded
     script_file_name <- "MS PIXEL TYPER"
     # Change log
-    change_log <- "1. New vote weights!!\n2. Fixed GUI\n3. Parallel now in foreach!\n4. Allow to set tolerance in ppm\n5. Multiple choice in ensemble vote"
+    change_log <- "1. New vote weights!!\n2. Fixed GUI\n3. Parallel now in foreach!\n4. Allow to set tolerance in ppm\n5. Multiple choice in ensemble vote\n6.Dump an RData file for R experts"
     
     
     
@@ -9485,7 +9546,7 @@ ms_pixel_typer <- function() {
         file_type_export_matrix <<- file_type_export_matrix
         # Set the value of the displaying label
         file_type_export_matrix_value_label <- tklabel(window, text = file_type_export_matrix, font = label_font, bg = "white", width = 20)
-        tkgrid(file_type_export_matrix_value_label, row = 6, column = 2)
+        tkgrid(file_type_export_matrix_value_label, row = 2, column = 2)
         # Raise the focus on the main window
         tkraise(window)
     }
@@ -9504,7 +9565,7 @@ ms_pixel_typer <- function() {
         file_type_export_images <<- file_type_export_images
         # Set the value of the displaying label
         file_type_export_images_value_label <- tklabel(window, text = file_type_export_images, font = label_font, bg = "white", width = 20)
-        tkgrid(file_type_export_images_value_label, row = 6, column = 4)
+        tkgrid(file_type_export_images_value_label, row = 2, column = 4)
         # Raise the focus on the main window
         tkraise(window)
     }
@@ -9558,7 +9619,7 @@ ms_pixel_typer <- function() {
         classification_mode_value <<- classification_mode_value
         # Set the value of the displaying label
         classification_mode_value_label <- tklabel(window, text = classification_mode_value, font = label_font, bg = "white", width = 20)
-        tkgrid(classification_mode_value_label, row = 5, column = 2)
+        tkgrid(classification_mode_value_label, row = 3, column = 2)
         # Raise the focus on the main window
         tkraise(window)
     }
@@ -9637,7 +9698,7 @@ ms_pixel_typer <- function() {
             close(RData_progress_bar)
         }
         RData_file_integrity_value_label <- tklabel(window, text = RData_file_integrity_value, font = label_font, bg = "white", width = 20)
-        tkgrid(RData_file_integrity_value_label, row = 5, column = 4)
+        tkgrid(RData_file_integrity_value_label, row = 4, column = 2)
         # Exit the function and put the variable into the R workspace
         filepath_R <<- filepath_R
         RData_file_integrity <<- RData_file_integrity
@@ -9778,7 +9839,7 @@ ms_pixel_typer <- function() {
         }
         # Value label
         decision_method_ensemble_value_label <- tklabel(window, text = decision_method_ensemble_value, font = label_font, bg = "white", width = 20, height = 4)
-        tkgrid(decision_method_ensemble_value_label, row = 3, column = 3)
+        tkgrid(decision_method_ensemble_value_label, row = 4, column = 4)
         # Escape the function
         decision_method_ensemble <<- decision_method_ensemble
         decision_method_ensemble_value <<- decision_method_ensemble_value
@@ -9810,7 +9871,7 @@ ms_pixel_typer <- function() {
             allow_parallelization_value <- "  NO  "
         }
         allow_parallelization_value_label <- tklabel(window, text = allow_parallelization_value, font = label_font, bg = "white", width = 20)
-        tkgrid(allow_parallelization_value_label, row = 4, column = 2)
+        tkgrid(allow_parallelization_value_label, row = 3, column = 4)
         # Escape the function
         allow_parallelization <<- allow_parallelization
         allow_parallelization_value <<- allow_parallelization_value
@@ -9900,6 +9961,8 @@ ms_pixel_typer <- function() {
             # Go to the new working directory
             setwd(subfolder)
             ##### Dump the files
+            # Dump the RData file
+            save(classification_of_patients, file = "Patient classification DATABASE.RData")
             # Determine the number of patients, to create subfolders (try with the msi list, if it is still zero because only the profile has been classified, use the profile list)
             number_of_patients <- length(classification_of_patients$final_result_matrix_msi_list)
             if (number_of_patients == 0) {
@@ -10282,7 +10345,7 @@ ms_pixel_typer <- function() {
     # Classification mode
     classification_mode_entry <- tkbutton(window, text = "CLASSIFICATION\nMODE", command = classification_mode_choice, font = button_font, bg = "white", width = 20)
     # RData input
-    select_RData_file_entry <- tkbutton(window, text = "SELECT RData\nWORKSPACE", command = select_RData_file_function, font = button_font, bg = "white", width = 20)
+    select_RData_file_entry <- tkbutton(window, text = "SELECT MODEL\nDATABASE...", command = select_RData_file_function, font = button_font, bg = "white", width = 20)
     # File type export matrix
     file_type_export_matrix_entry <- tkbutton(window, text = "FILE TYPE\nEXPORT\nMATRIX", command = file_type_export_matrix_choice, font = button_font, bg = "white", width = 20)
     # File type export images
@@ -10294,7 +10357,7 @@ ms_pixel_typer <- function() {
     # End session
     end_session_button <- tkbutton(window, text = "QUIT", command = end_session_function, font = button_font, bg = "white", width = 20)
     # Run the MS Pixel Typer
-    run_ms_pixel_typer_function_button <- tkbutton(window, text = "RUN THE\nMS PIXEL TYPER", command = run_ms_pixel_typer_function, font = button_font, bg = "white", width = 20)
+    run_ms_pixel_typer_function_button <- tkbutton(window, text = "RUN\nMS PIXEL TYPER...", command = run_ms_pixel_typer_function, font = button_font, bg = "white", width = 20)
     # Dump the files
     ms_pixel_typer_data_dumper_button <- tkbutton(window, text = "DUMP\nFILES", command = ms_pixel_typer_data_dumper_function, font = button_font, bg = "white", width = 20)
     # Updates
@@ -10322,22 +10385,22 @@ ms_pixel_typer <- function() {
     #tkgrid(peak_deisotoping_enveloping_value_label, row = 2, column = 4, padx = c(10, 10), pady = c(10, 10))
     #tkgrid(peak_picking_algorithm_entry, row = 2, column = 1, padx = c(10, 10), pady = c(10, 10))
     #tkgrid(peak_picking_algorithm_value_label, row = 2, column = 2, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(file_type_export_matrix_entry, row = 6, column = 1, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(file_type_export_matrix_value_label, row = 6, column = 2, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(file_type_export_images_entry, row = 6, column = 3, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(file_type_export_images_value_label, row = 6, column = 4, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(decision_method_ensemble_entry, row = 3, column = 2, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(decision_method_ensemble_value_label, row = 3, column = 3, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(classification_mode_entry, row = 5, column = 1, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(classification_mode_value_label, row = 5, column = 2, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(select_RData_file_entry, row = 5, column = 3, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(RData_file_integrity_value_label, row = 5, column = 4, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(allow_parallelization_button, row = 4, column = 1, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(allow_parallelization_value_label, row = 4, column = 2, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(spectra_preprocessing_button, row = 4, column = 3, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(run_ms_pixel_typer_function_button, row = 7, column = 3, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(file_type_export_matrix_entry, row = 2, column = 1, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(file_type_export_matrix_value_label, row = 2, column = 2, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(file_type_export_images_entry, row = 2, column = 3, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(file_type_export_images_value_label, row = 2, column = 4, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(decision_method_ensemble_entry, row = 4, column = 3, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(decision_method_ensemble_value_label, row = 4, column = 4, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(classification_mode_entry, row = 3, column = 1, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(classification_mode_value_label, row = 3, column = 2, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(select_RData_file_entry, row = 4, column = 1, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(RData_file_integrity_value_label, row = 4, column = 2, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(allow_parallelization_button, row = 3, column = 3, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(allow_parallelization_value_label, row = 3, column = 4, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(spectra_preprocessing_button, row = 7, column = 3, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(run_ms_pixel_typer_function_button, row = 7, column = 4, padx = c(10, 10), pady = c(10, 10))
     #tkgrid(ms_pixel_typer_data_dumper_button, row = 7, column = 4, padx = c(10, 10), pady = c(10, 10))
-    tkgrid(end_session_button, row = 7, column = 4, columnspan = 4, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(end_session_button, row = 8, column = 2, columnspan = 2, padx = c(10, 10), pady = c(10, 10))
     tkgrid(download_updates_button, row = 1, column = 3, padx = c(10, 10), pady = c(10, 10))
     tkgrid(check_for_updates_value_label, row = 1, column = 4, padx = c(10, 10), pady = c(10, 10))
     
