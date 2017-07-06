@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
     
-    ################## FUNCTIONS - MASS SPECTROMETRY 2017.07.04 ################
+    ################## FUNCTIONS - MASS SPECTROMETRY 2017.07.06 ################
     # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
     
     
@@ -4293,6 +4293,7 @@ functions_mass_spectrometry <- function() {
                 if (length(list_of_models) > 2 && !is.null(final_result_matrix_msi_patient) && classes_are_the_same_for_each_model == TRUE && outcomes_are_the_same_for_each_model == TRUE) {
                     ##### Unweighted majority
                     if ("unweighted majority" %in% decision_method_ensemble) {
+                        cat("\nComputing ensemble classification: Unweighted Majority\n")
                         ### Classification matrix
                         classification_ensemble_matrix_msi <- ensemble_vote_classification(classification_matrix = final_result_matrix_msi_patient, class_list = model_list[[1]]$class_list, weighted_decision_method = "unweighted majority", classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list, type_of_validation_for_performance_estimation = "cv")
                         # Store the ensemble classification matrix in the final output list
@@ -4338,6 +4339,7 @@ functions_mass_spectrometry <- function() {
                     }
                     ##### Class assignment probabilities
                     if ("class assignment probabilities" %in% decision_method_ensemble) {
+                        cat("\nComputing ensemble classification: Class Assignment Probabilities\n")
                         ### Classification matrix
                         classification_ensemble_matrix_msi <- ensemble_vote_classification(classification_matrix = final_result_matrix_msi_patient, class_list = model_list[[1]]$class_list, weighted_decision_method = "class assignment probabilities", classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list, type_of_validation_for_performance_estimation = "cv")
                         # Store the ensemble classification matrix in the final output list
@@ -4383,6 +4385,7 @@ functions_mass_spectrometry <- function() {
                     }
                     ##### Class assignment probabilities
                     if ("bayesian probabilities" %in% decision_method_ensemble) {
+                        cat("\nComputing ensemble classification: Bayesian Probabilities\n")
                         ### Classification matrix
                         classification_ensemble_matrix_msi <- ensemble_vote_classification(classification_matrix = final_result_matrix_msi_patient, class_list = model_list[[1]]$class_list, weighted_decision_method = "bayesian probabilities", classification_probabilities_list = predicted_classes_probs_list, performance_parameter_list = model_performance_parameter_list, type_of_validation_for_performance_estimation = "cv")
                         # Store the ensemble classification matrix in the final output list
@@ -4946,7 +4949,11 @@ functions_mass_spectrometry <- function() {
         }
         ### Define the control function of the RFE
         rfe_ctrl <- rfeControl(functions = caretFuncs, method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, saveDetails = TRUE, allowParallel = allow_parallelization, rerank = feature_reranking, seeds = NULL)
-        train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE)
+        if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
+            train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
+        } else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
+            train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
+        }
         ### Model tuning is performed during feature selection (best choice)
         if (!is.null(model_tuning) && model_tuning == "embedded" && is.list(model_tune_grid)) {
             # Run the RFE
@@ -5025,7 +5032,11 @@ functions_mass_spectrometry <- function() {
                 set.seed(seed)
             }
             # Define the control function
-            train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE)
+            if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
+                train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
+            } else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
+                train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
+            }
             # Define the model tuned
             fs_model_tuning <- train(x = training_set_feature_selection[, !(names(training_set_feature_selection) %in% non_features)], y = as.factor(training_set_feature_selection[, discriminant_attribute]), method = selection_method, preProcess = preprocessing, tuneGrid = expand.grid(model_tune_grid), trControl = train_ctrl, metric = selection_metric)
             # Plots
@@ -6072,9 +6083,9 @@ functions_mass_spectrometry <- function() {
         colnames(distance_matrix) <- peaklist_matrix[,"Sample"]
         rownames(distance_matrix) <- peaklist_matrix[,"Sample"]
         # Remove the first rows (the spectra from the database) and Keep only the first columns (the spectra from the database)
-        distance_matrix <- distance_matrix[(reference_size + 1):nrow(distance_matrix), 1:reference_size]
+        distance_matrix <- as.matrix(distance_matrix[(reference_size + 1):nrow(distance_matrix), 1:reference_size])
         ### Normalize the euclidean distances (per sample)
-        if (normalize_distances == TRUE) {
+        if (normalize_distances == TRUE && nrow(distance_matrix) > 1 && ncol(distance_matrix) > 1) {
             # Sample TIC (SUM of the distances of the sample from all the database entries)
             if (normalization_method == "sum") {
                 # Compute the sum of the rows
@@ -6141,9 +6152,25 @@ functions_mass_spectrometry <- function() {
                 }
                 result_matrix <- apply(distance_matrix, MARGIN = c(1,2), FUN = function(x) scoring_function(x))
             }
+        } else {
+            # Scroll the rows, assign the class based upon the distance, create the output matrix for results (create a function to apply to each matrix row)
+            scoring_function <- function(x) {
+                if (x < 0.1) {
+                    x <- paste0("YES\n(", round(as.numeric(x),3), ")")
+                } else if (x >= 0.1 && x < 1) {
+                    x <- paste0("NI\n(", round(as.numeric(x),3), ")")
+                } else if (x >= 1) {
+                    x <- paste0("NO\n(", round(as.numeric(x),3), ")")
+                }
+                return(x)
+            }
+            result_matrix <- apply(distance_matrix, MARGIN = c(1,2), FUN = function(x) scoring_function(x))
         }
         # Spectra path
-        result_matrix <- cbind(result_matrix, sample_vector)
+        result_matrix <- cbind(result_matrix, spectra_path_vector)
+        colnames(result_matrix) <- c(reference_vector, "Spectrum path")
+        rownames(result_matrix) <- sample_vector
+        # Return
         return(list(result_matrix = result_matrix, hca_dendrogram = hca_dendrogram))
     }
     
@@ -6815,8 +6842,12 @@ functions_mass_spectrometry <- function() {
                 peaks_sample_x <- peaks_all[["peaks_sample_x"]]
                 # Replace the SNR in the peaks with the CV (for each peak)
                 if ((!is.null(reference_spectral_variability_list) && length(reference_spectral_variability_list) > 0) && (!is.null(test_spectral_variability_list) && length(test_spectral_variability_list) > 0)) {
-                    peaks_reference_x@snr <- reference_spectral_variability_list$cv_list[[db]]
-                    peaks_sample_x@snr <- test_spectral_variability_list$cv_list[[x$sample_ID]]
+                    if (length(peaks_reference_x@snr) == length(reference_spectral_variability_list$cv_list[[db]]) && length(peaks_sample_x@snr) == length(test_spectral_variability_list$cv_list[[x$sample_ID]])) {
+                        peaks_reference_x@snr <- reference_spectral_variability_list$cv_list[[db]]
+                        peaks_sample_x@snr <- test_spectral_variability_list$cv_list[[x$sample_ID]]
+                    } else {
+                        signal_intensity_evaluation <- "average coefficient of variation"
+                    }
                 }
                 ## Number of signals
                 number_of_signals_samples <- length(peaks_sample_x@mass)
@@ -6884,7 +6915,7 @@ functions_mass_spectrometry <- function() {
                     }
                     # Append this row to the global matrix
                     intensity_matching_matrix[1, db] <- intensity_matching_sample
-                } else if (signal_intensity_evaluation == "peak-wise adjusted percentage" && (!is.null(x[["reference_spectral_variability_list"]]) && !is.null(x[["test_spectral_variability_list"]])) || (length(x[["reference_spectral_variability_list"]]) > 0 && length(x[["test_spectral_variability_list"]]) > 0)) {
+                } else if (signal_intensity_evaluation == "peak-wise adjusted percentage" && (!is.null(x[["reference_spectral_variability_list"]]) && !is.null(x[["test_spectral_variability_list"]])) && (length(x[["reference_spectral_variability_list"]]) > 0 && length(x[["test_spectral_variability_list"]]) > 0)) {
                     ## PEAK-WISE ADJUSTED INTENSITY PERCENTAGE
                     # Create a counter, symmetrical to the database Peaklist
                     if (length(peaks_sample_x@mass) > 0 && length(peaks_reference_x@mass) > 0) {
@@ -6941,7 +6972,7 @@ functions_mass_spectrometry <- function() {
                     }
                     # Append this row to the global matrix
                     intensity_matching_matrix[1, db] <- intensity_matching_sample
-                } else if (signal_intensity_evaluation == "average coefficient of variation" && (!is.null(x[["reference_spectral_variability_list"]]) && !is.null(x[["test_spectral_variability_list"]])) || (length(x[["reference_spectral_variability_list"]]) > 0 && length(x[["test_spectral_variability_list"]]) > 0)) {
+                } else if (signal_intensity_evaluation == "average coefficient of variation" && (!is.null(x[["reference_spectral_variability_list"]]) && !is.null(x[["test_spectral_variability_list"]])) && (length(x[["reference_spectral_variability_list"]]) > 0 && length(x[["test_spectral_variability_list"]]) > 0)) {
                     ## AVERAGE COEFFICIENT OF VARIATION
                     # Create a counter, symmetrical to the database Peaklist
                     if (length(peaks_sample_x@mass) > 0 && length(peaks_reference_x@mass) > 0) {
@@ -8874,6 +8905,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8914,7 +8946,7 @@ ms_pixel_typer <- function() {
     # In the debugging phase, run the whole code block within the {}, like as if the script was directly sourced from the file.
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.07.04.0"
+    R_script_version <- "2017.07.06.0"
     ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
     force_update <- FALSE
     ### GitHub URL where the R file is
@@ -10419,4 +10451,3 @@ functions_mass_spectrometry()
 
 ### Run the function
 ms_pixel_typer()
-
