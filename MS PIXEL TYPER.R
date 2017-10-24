@@ -8844,7 +8844,7 @@ ms_pixel_typer <- function() {
   # In the debugging phase, run the whole code block within the {}, like as if the script was directly sourced from the file.
   
   ### Program version (Specified by the program writer!!!!)
-  R_script_version <- "2017.10.24.0"
+  R_script_version <- "2017.10.24.1"
   ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
   force_update <- FALSE
   ### GitHub URL where the R file is
@@ -9828,7 +9828,7 @@ ms_pixel_typer <- function() {
         setTkProgressBar(program_progress_bar, value = 0, title = NULL, label = "0 %")
         setTkProgressBar(program_progress_bar, value = 0.25, title = "Performing classification...", label = "25 %")
         ########## Run the classification function
-        classification_of_patients <- spectral_classification(spectra_path = filepath_import, filepath_R = filepath_R, model_list = NULL, model_performance_parameter_list = NULL, classification_mode = classification_mode, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = peak_deisotoping, preprocessing_parameters = preprocessing_parameters, tof_mode = tof_mode, allow_parallelization = allow_parallelization, decision_method_ensemble = decision_method_ensemble, pixel_grouping = pixel_grouping, moving_window_size = moving_window_size, number_of_hca_nodes = number_of_hca_nodes, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 50, iterations_with_no_change_GA = 5, seed = 12345, plot_figures = TRUE, plot_graphs = TRUE, plot_legends = plot_legends, tolerance_ppm = tolerance_ppm, alpha = 0.05)
+        classification_of_patients <- spectral_classification(spectra_path = filepath_import, filepath_R = filepath_R, model_list = NULL, model_performance_parameter_list = NULL, classification_mode = classification_mode, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = peak_deisotoping, preprocessing_parameters = preprocessing_parameters, tof_mode = tof_mode, allow_parallelization = allow_parallelization, decision_method_ensemble = decision_method_ensemble, pixel_grouping = pixel_grouping, moving_window_size = moving_window_size, number_of_hca_nodes = number_of_hca_nodes, correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 50, iterations_with_no_change_GA = 5, seed = 12345, plot_figures = TRUE, plot_graphs = TRUE, plot_legends = plot_legends, tolerance_ppm = tolerance_ppm, alpha = 0.05)
         # Escape the function
         classification_of_patients <<- classification_of_patients
         setTkProgressBar(program_progress_bar, value = 0.75, title = "Saving files...", label = "75 %")
