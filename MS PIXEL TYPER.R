@@ -8804,6 +8804,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8844,7 +8845,7 @@ ms_pixel_typer <- function() {
   # In the debugging phase, run the whole code block within the {}, like as if the script was directly sourced from the file.
   
   ### Program version (Specified by the program writer!!!!)
-  R_script_version <- "2017.10.24.1"
+  R_script_version <- "2017.10.25.0"
   ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
   force_update <- FALSE
   ### GitHub URL where the R file is
@@ -8862,12 +8863,7 @@ ms_pixel_typer <- function() {
   
   
   ############## INSTALL AND LOAD THE REQUIRED PACKAGES
-  install_and_load_required_packages(c("tcltk", "parallel", "caret", "stats", "pROC", "nnet", "e1071", "kernlab", "MASS", "klaR", "pls", "randomForest", "lda", "SparseM", "stringi", "XML", "MALDIquant", "MALDIquantForeign"), repository = "http://cran.mirror.garr.it/mirrors/CRAN/", update_packages = TRUE, print_messages = TRUE)
-  if (Sys.info()[1] == "Windows") {
-    install_and_load_required_packages("doParallel")
-  } else {
-    install_and_load_required_packages("doMC")
-  }
+  install_and_load_required_packages(c("tcltk", "parallel", "caret", "stats", "pROC", "nnet", "e1071", "kernlab", "MASS", "klaR", "pls", "randomForest", "lda", "SparseM", "stringi", "XML", "MALDIquant", "MALDIquantForeign", "doParallel"), repository = "http://cran.mirror.garr.it/mirrors/CRAN/", update_packages = TRUE, print_messages = TRUE)
   
   
   
