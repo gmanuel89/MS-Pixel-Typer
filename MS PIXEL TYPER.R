@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
   
-  ################## FUNCTIONS - MASS SPECTROMETRY 2017.10.24 ################
+  ################## FUNCTIONS - MASS SPECTROMETRY 2017.10.25 ################
   # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
   
   
@@ -4928,12 +4928,13 @@ functions_mass_spectrometry <- function() {
     ### Define the control function of the RFE
     rfe_ctrl <- rfeControl(functions = caretFuncs, method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, saveDetails = TRUE, allowParallel = allow_parallelization, rerank = feature_reranking, seeds = NULL)
     # Two classes
-    if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
-      train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
-    } else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
+    #if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
+      #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
+    #} else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
       # Multi-classes
-      train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
-    }
+      #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
+    #}
+    train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE)
     ### Model tuning is performed during feature selection (best choice)
     if (!is.null(model_tuning) && model_tuning == "embedded" && is.list(model_tune_grid)) {
       # Run the RFE
@@ -5354,20 +5355,20 @@ functions_mass_spectrometry <- function() {
       setTxtProgressBar(fs_progress_bar, value = 0.70, title = NULL, label = "Neural Network")
     }
     # Neural Network
-    nnet_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "nnet", model_tuning = model_tuning, model_tune_grid = list(size = seq(1,5, by = 1), decay = seq(0,2,by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters, test_set = test_set)
-    nnet_model <- nnet_model_rfe$feature_selection_model
-    nnet_model_features <- nnet_model_rfe$predictors_feature_selection
-    nnet_model_class_list <- nnet_model_rfe$class_list
-    nnet_model_ID <- "nnet"
-    nnet_model_performance <- nnet_model_rfe$fs_model_performance
-    nnet_model_cross_validation_confusion_matrix <- nnet_model_rfe$cross_validation_confusion_matrix
-    nnet_model_cross_validation_confusion_matrix_df <- nnet_model_rfe$cross_validation_confusion_matrix_df
-    nnet_model_cv_performance_parameter_list <- nnet_model_rfe$model_cv_performance_parameter_list
-    nnet_model_external_validation_confusion_matrix <- nnet_model_rfe$external_validation_confusion_matrix
-    nnet_model_external_validation_confusion_matrix_df <- nnet_model_rfe$external_validation_confusion_matrix_df
-    nnet_model_external_performance_parameter_list <- nnet_model_rfe$model_external_performance_parameter_list
-    cat("\nNeural Network\n")
-    cat(nnet_model_performance)
+    #nnet_model_rfe <- automated_embedded_rfe(training_set = training_set, features_to_select = features_to_select, selection_method = "nnet", model_tuning = model_tuning, model_tune_grid = list(size = seq(1,5, by = 1), decay = seq(0,2,by = 1)), selection_metric = selection_metric, cv_repeats_control = cv_repeats_control, k_fold_cv_control = k_fold_cv_control, discriminant_attribute = discriminant_attribute, non_features = non_features, seed = seed, automatically_select_features = automatically_select_features, generate_plots = generate_plots, preprocessing = preprocessing, allow_parallelization = allow_parallelization, feature_reranking = feature_reranking, try_combination_of_parameters = try_combination_of_parameters, test_set = test_set)
+    #nnet_model <- nnet_model_rfe$feature_selection_model
+    #nnet_model_features <- nnet_model_rfe$predictors_feature_selection
+    #nnet_model_class_list <- nnet_model_rfe$class_list
+    #nnet_model_ID <- "nnet"
+    #nnet_model_performance <- nnet_model_rfe$fs_model_performance
+    #nnet_model_cross_validation_confusion_matrix <- nnet_model_rfe$cross_validation_confusion_matrix
+    #nnet_model_cross_validation_confusion_matrix_df <- nnet_model_rfe$cross_validation_confusion_matrix_df
+    #nnet_model_cv_performance_parameter_list <- nnet_model_rfe$model_cv_performance_parameter_list
+    #nnet_model_external_validation_confusion_matrix <- nnet_model_rfe$external_validation_confusion_matrix
+    #nnet_model_external_validation_confusion_matrix_df <- nnet_model_rfe$external_validation_confusion_matrix_df
+    #nnet_model_external_performance_parameter_list <- nnet_model_rfe$model_external_performance_parameter_list
+    #cat("\nNeural Network\n")
+    #cat(nnet_model_performance)
     ##### Elements for the RData
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
@@ -5391,7 +5392,7 @@ functions_mass_spectrometry <- function() {
     # K-Nearest Neighbor
     KNN_model_list <- list(model = knn_model, class_list = knn_model_class_list, outcome_list = outcome_list, features_model = knn_model_features, model_ID = knn_model_ID, model_performance = knn_model_performance, cross_validation_confusion_matrix = knn_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = knn_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = knn_model_cv_performance_parameter_list, external_validation_confusion_matrix = knn_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = knn_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = knn_model_external_performance_parameter_list)
     # Neural Network
-    NNET_model_list <- list(model = nnet_model, class_list = nnet_model_class_list, outcome_list = outcome_list, features_model = nnet_model_features, model_ID = nnet_model_ID, model_performance = nnet_model_performance, cross_validation_confusion_matrix = nnet_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = nnet_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = nnet_model_cv_performance_parameter_list, external_validation_confusion_matrix = nnet_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = nnet_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = nnet_model_external_performance_parameter_list)
+    #NNET_model_list <- list(model = nnet_model, class_list = nnet_model_class_list, outcome_list = outcome_list, features_model = nnet_model_features, model_ID = nnet_model_ID, model_performance = nnet_model_performance, cross_validation_confusion_matrix = nnet_model_cross_validation_confusion_matrix, cross_validation_confusion_matrix_df = nnet_model_cross_validation_confusion_matrix_df, model_cv_performance_parameter_list = nnet_model_cv_performance_parameter_list, external_validation_confusion_matrix = nnet_model_external_validation_confusion_matrix, external_validation_confusion_matrix_df = nnet_model_external_validation_confusion_matrix_df, model_external_performance_parameter_list = nnet_model_external_performance_parameter_list)
     # Progress bar
     if (!is.null(progress_bar) && progress_bar == "tcltk") {
       setTkProgressBar(fs_progress_bar, value = 0.95, title = NULL, label = NULL)
@@ -5399,7 +5400,7 @@ functions_mass_spectrometry <- function() {
       setTxtProgressBar(fs_progress_bar, value = 0.95, title = NULL, label = NULL)
     }
     ### Build the final model list (to be exported) (each element has the proper name of the model)
-    model_list <- list("SVM Radial Basis" = RSVM_model_list, "SVM Polynomial" = PSVM_model_list, "SVM Linear" = LSVM_model_list, "Partial Least Squares" = PLS_model_list, "Random Forest" = RF_model_list, "Naive Bayes Classifier" = NBC_model_list, "k-Nearest Neighbor" = KNN_model_list, "Neural Network" = NNET_model_list)
+    model_list <- list("SVM Radial Basis" = RSVM_model_list, "SVM Polynomial" = PSVM_model_list, "SVM Linear" = LSVM_model_list, "Partial Least Squares" = PLS_model_list, "Random Forest" = RF_model_list, "Naive Bayes Classifier" = NBC_model_list, "k-Nearest Neighbor" = KNN_model_list)#, "Neural Network" = NNET_model_list)
     ### Build the final feature vector
     feature_list <- extract_feature_list_from_model_list(filepath_R = model_list, features_to_return = features_to_select)
     ### Yield the peaklist matrix with only the common features
@@ -8805,6 +8806,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8845,7 +8847,7 @@ ms_pixel_typer <- function() {
   # In the debugging phase, run the whole code block within the {}, like as if the script was directly sourced from the file.
   
   ### Program version (Specified by the program writer!!!!)
-  R_script_version <- "2017.10.25.0"
+  R_script_version <- "2017.10.25.1"
   ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
   force_update <- FALSE
   ### GitHub URL where the R file is
@@ -10345,5 +10347,4 @@ functions_mass_spectrometry()
 
 ### Run the function
 ms_pixel_typer()
-
 
