@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
   
-  ################## FUNCTIONS - MASS SPECTROMETRY 2017.10.25 ################
+  ################## FUNCTIONS - MASS SPECTROMETRY 2017.11.10 ################
   # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
   
   
@@ -3486,8 +3486,8 @@ functions_mass_spectrometry <- function() {
             colnames(final_sample_matrix)[n] <- paste0("X", colnames(final_sample_matrix)[n])
           }
           ##### Predictions (spectra by spectra)
-          predicted_classes <- as.character(predict(model_object, newdata = final_sample_matrix, type = "raw"))
-          predicted_classes_probs <- predict(model_object, newdata = final_sample_matrix, type = "prob")
+          predicted_classes <- as.character(predict(model_object, newdata = final_sample_matrix))#, type = "raw"))
+          predicted_classes_probs <- predict(model_object, newdata = final_sample_matrix)#, type = "prob")
           names(predicted_classes) <- rownames(final_sample_matrix)
           rownames(predicted_classes_probs) <- rownames(final_sample_matrix)
           # Generate a matrix with the results
@@ -3579,8 +3579,8 @@ functions_mass_spectrometry <- function() {
               colnames(sample_bin_matrix)[n] <- paste0("X", colnames(sample_bin_matrix)[n])
             }
             ##### Predictions (AVG spectrum)
-            predicted_class_avg <- as.character(predict(model_object, newdata = sample_bin_matrix, type = "raw"))
-            predicted_class_avg_probs <- predict(model_object, newdata = sample_bin_matrix, type = "prob")
+            predicted_class_avg <- as.character(predict(model_object, newdata = sample_bin_matrix))#, type = "raw"))
+            predicted_class_avg_probs <- predict(model_object, newdata = sample_bin_matrix)#, type = "prob")
             names(predicted_class_avg) <- names(spectra)[s]
             rownames(predicted_class_avg_probs) <- names(spectra)[s]
             # Generate a matrix with the results
@@ -3700,8 +3700,8 @@ functions_mass_spectrometry <- function() {
               colnames(sample_hca_matrix)[x] <- paste0("X", colnames(sample_hca_matrix)[x])
             }
             ##### Predictions (AVG spectrum)
-            predicted_class_avg <- as.character(predict(model_object, newdata = sample_hca_matrix, type = "raw"))
-            predicted_class_avg_probs <- predict(model_object, newdata = sample_hca_matrix, type = "prob")
+            predicted_class_avg <- as.character(predict(model_object, newdata = sample_hca_matrix))#, type = "raw"))
+            predicted_class_avg_probs <- predict(model_object, newdata = sample_hca_matrix)#, type = "prob")
             names(predicted_class_avg) <- rownames(sample_hca_matrix)
             rownames(predicted_class_avg_probs) <- rownames(sample_hca_matrix)
             # Fill the model matrix with the results
@@ -3803,8 +3803,8 @@ functions_mass_spectrometry <- function() {
               colnames(sample_clique_matrix)[x] <- paste0("X", colnames(sample_clique_matrix)[x])
             }
             ##### Predictions (AVG spectrum)
-            predicted_class_avg <- as.character(predict(model_object, newdata = sample_clique_matrix, type = "raw"))
-            predicted_class_avg_probs <- predict(model_object, newdata = sample_clique_matrix, type = "prob")
+            predicted_class_avg <- as.character(predict(model_object, newdata = sample_clique_matrix))#, type = "raw"))
+            predicted_class_avg_probs <- predict(model_object, newdata = sample_clique_matrix)#, type = "prob")
             names(predicted_classes) <- rownames(sample_clique_matrix)
             rownames(predicted_classes_probs) <- rownames(sample_clique_matrix)
             ### Fix the spectra for plotting list (edit the intensity values)
@@ -3829,8 +3829,8 @@ functions_mass_spectrometry <- function() {
               colnames(sample_independent_matrix)[x] <- paste0("X", colnames(sample_independent_matrix)[x])
             }
             ##### Predictions (AVG spectrum)
-            predicted_class_avg <- as.character(predict(model_object, newdata = sample_independent_matrix, type = "raw"))
-            predicted_class_avg_probs <- predict(model_object, newdata = sample_independent_matrix, type = "prob")
+            predicted_class_avg <- as.character(predict(model_object, newdata = sample_independent_matrix))#, type = "raw"))
+            predicted_class_avg_probs <- predict(model_object, newdata = sample_independent_matrix)#, type = "prob")
             names(predicted_classes) <- rownames(sample_independent_matrix)
             rownames(predicted_classes_probs) <- rownames(sample_independent_matrix)
             ### Fix the spectra for plotting list (edit the intensity values)
@@ -3899,7 +3899,7 @@ functions_mass_spectrometry <- function() {
             }
             ##### Predictions (class, no probabilities)
             if (model_ID == "rf" || model_ID == "nbc" || model_ID == "knn" || model_ID == "nnet" || model_ID == "lda" || model_ID == "bayes") {
-              predicted_classes <- as.character(predict(model_object, newdata = sample_clique_matrix, type = "raw"))
+              predicted_classes <- as.character(predict(model_object, newdata = sample_clique_matrix))#, type = "raw"))
               names(predicted_classes) <- rownames(sample_clique_matrix)
             } else {
               predicted_classes <- as.character(predict(model_object, newdata = sample_clique_matrix))
@@ -3982,8 +3982,8 @@ functions_mass_spectrometry <- function() {
           colnames(final_sample_matrix)[n] <- name
         }
         # Predictions
-        predicted_classes <- as.character(predict(model_object, newdata = final_sample_matrix, type = "raw"))
-        predicted_classes_probs <- predict(model_object, newdata = final_sample_matrix, type = "prob")
+        predicted_classes <- as.character(predict(model_object, newdata = final_sample_matrix))#, type = "raw"))
+        predicted_classes_probs <- predict(model_object, newdata = final_sample_matrix)#, type = "prob")
         # Generate a matrix with the results
         result_matrix <- matrix(nrow = 1, ncol = 1)
         rownames(result_matrix) <- spectra@metaData$file[[1]]
@@ -4929,12 +4929,12 @@ functions_mass_spectrometry <- function() {
     rfe_ctrl <- rfeControl(functions = caretFuncs, method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, saveDetails = TRUE, allowParallel = allow_parallelization, rerank = feature_reranking, seeds = NULL)
     # Two classes
     #if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
-      #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
+    #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
     #} else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
-      # Multi-classes
-      #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
+    # Multi-classes
+    #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
     #}
-    train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE)
+    train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL)#, classProbs = TRUE)
     ### Model tuning is performed during feature selection (best choice)
     if (!is.null(model_tuning) && model_tuning == "embedded" && is.list(model_tune_grid)) {
       # Run the RFE
@@ -4945,19 +4945,19 @@ functions_mass_spectrometry <- function() {
       rfe_model <- rfe(x = training_set[, !(names(training_set) %in% non_features)], y = as.factor(training_set[,discriminant_attribute]), sizes = subset_sizes, rfeControl = rfe_ctrl, trControl = train_ctrl, method = selection_method, metric = selection_metric, preProcess = preprocessing)
     }
     ### Model performances: two classes (ROC)
-    if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
-      fs_model_performance <- as.numeric(max(rfe_model$fit$results$ROC, na.rm = TRUE))
-      names(fs_model_performance) <- "ROC AUC"
-    } else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
-      ### Model performances: multi-classes (Accuracy or Kappa)
-      if (selection_metric == "kappa" || selection_metric == "Kappa") {
-        fs_model_performance <- as.numeric(max(rfe_model$fit$results$Kappa, na.rm = TRUE))
-        names(fs_model_performance) <- "Kappa"
-      } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
-        fs_model_performance <- as.numeric(max(rfe_model$fit$results$Accuracy, na.rm = TRUE))
-        names(fs_model_performance) <- "Accuracy"
-      }
+    #if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
+    #fs_model_performance <- as.numeric(max(rfe_model$fit$results$ROC, na.rm = TRUE))
+    #names(fs_model_performance) <- "ROC AUC"
+    #} else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
+    ### Model performances: multi-classes (Accuracy or Kappa)
+    if (selection_metric == "kappa" || selection_metric == "Kappa") {
+      fs_model_performance <- as.numeric(max(rfe_model$fit$results$Kappa, na.rm = TRUE))
+      names(fs_model_performance) <- "Kappa"
+    } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
+      fs_model_performance <- as.numeric(max(rfe_model$fit$results$Accuracy, na.rm = TRUE))
+      names(fs_model_performance) <- "Accuracy"
     }
+    #}
     # Extract the model
     fs_model <- rfe_model$fit
     # Extract the model performance parameters
@@ -5011,11 +5011,12 @@ functions_mass_spectrometry <- function() {
         set.seed(seed)
       }
       # Define the control function
-      if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
-        train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
-      } else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
-        train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
-      }
+      #if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
+      #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
+      #} else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
+      #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
+      #}
+      train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL)#, classProbs = TRUE)
       # Define the model tuned
       fs_model_tuning <- train(x = training_set_feature_selection[, !(names(training_set_feature_selection) %in% non_features)], y = as.factor(training_set_feature_selection[, discriminant_attribute]), method = selection_method, preProcess = preprocessing, tuneGrid = expand.grid(model_tune_grid), trControl = train_ctrl, metric = selection_metric)
       # Plots
@@ -5028,21 +5029,21 @@ functions_mass_spectrometry <- function() {
         model_tuning_graphics <- NULL
       }
       ### Model performances: two classes (ROC)
-      if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
-        fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$ROC, na.rm = TRUE))
-        names(fs_model_performance_tuning) <- "ROC AUC"
-      } else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
-        ### Model performances: multi-classes (Accuracy or Kappa)
-        if (selection_metric == "kappa" || selection_metric == "Kappa") {
-          fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Kappa, na.rm = TRUE))
-          names(fs_model_performance_tuning) <- "Kappa"
-        } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
-          fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Accuracy, na.rm = TRUE))
-          names(fs_model_performance_tuning) <- "Accuracy"
-        }
+      #if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
+      #fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$ROC, na.rm = TRUE))
+      #names(fs_model_performance_tuning) <- "ROC AUC"
+      #} else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
+      ### Model performances: multi-classes (Accuracy or Kappa)
+      if (selection_metric == "kappa" || selection_metric == "Kappa") {
+        fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Kappa, na.rm = TRUE))
+        names(fs_model_performance_tuning) <- "Kappa"
+      } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
+        fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Accuracy, na.rm = TRUE))
+        names(fs_model_performance_tuning) <- "Accuracy"
       }
+      #}
       ## Keep the model and the performance values only if the tuning yields more performances that just after the RFE
-      if (fs_model_performance_tuning > fs_model_performance) {
+      if (as.numeric(fs_model_performance_tuning) > as.numeric(fs_model_performance)) {
         fs_model_performance <- fs_model_performance_tuning
         fs_model <- fs_model_tuning
       }
@@ -5063,7 +5064,7 @@ functions_mass_spectrometry <- function() {
       }
       # Class prediction (with the same features!)
       test_set <- test_set[, names(training_set_feature_selection)]
-      predicted_classes_model <- predict(fs_model, newdata = test_set[,!(names(test_set) %in% non_features)], type = "raw")
+      predicted_classes_model <- predict(fs_model, newdata = test_set[,!(names(test_set) %in% non_features)])#, type = "raw")
       # Determine the performance parameters
       model_external_performance_parameters <- extract_model_performance_parameters(training_set = training_set_feature_selection, model_object = fs_model, discriminant_attribute = discriminant_attribute, non_features = non_features, type_of_analysis = "external validation", test_set = test_set)
       model_external_performance_parameter_list <- model_external_performance_parameters$performance_parameter_list
@@ -5526,7 +5527,7 @@ functions_mass_spectrometry <- function() {
       bayesian_probabilities <- list()
       ### The training and the test sets must have the same exact features
       test_set <- test_set[, names(training_set)]
-      predicted_classes_model <- as.character(predict(model_object, newdata = test_set[,!(names(test_set) %in% non_features)], type = "raw"))
+      predicted_classes_model <- as.character(predict(model_object, newdata = test_set[,!(names(test_set) %in% non_features)]))#, type = "raw"))
       ### Determine the performance parameter values for each class (at each iteration, one class will be considered as the positive class for the confusion matrix)
       for (cl in 1:length(class_list)) {
         # One is the positive class
@@ -8723,7 +8724,8 @@ functions_mass_spectrometry <- function() {
   
   
   ################################################################################
-}
+  }
+
 
 
 
@@ -8847,7 +8849,7 @@ ms_pixel_typer <- function() {
   # In the debugging phase, run the whole code block within the {}, like as if the script was directly sourced from the file.
   
   ### Program version (Specified by the program writer!!!!)
-  R_script_version <- "2017.10.25.1"
+  R_script_version <- "2017.11.10.0"
   ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
   force_update <- FALSE
   ### GitHub URL where the R file is
