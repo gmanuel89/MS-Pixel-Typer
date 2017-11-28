@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
   
-  ################## FUNCTIONS - MASS SPECTROMETRY 2017.11.13 ################
+  ################## FUNCTIONS - MASS SPECTROMETRY 2017.11.27 ################
   # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
   
   
@@ -773,12 +773,14 @@ functions_mass_spectrometry <- function() {
           ### MULTICORE
           if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Detect the number of cores
-            cpu_thread_number <- detectCores(logical = TRUE)
+            #cpu_thread_number <- detectCores(logical = TRUE)
+            # Inspired by Firefox Quantum, use always 4 processes
+            cpu_thread_number <- 4
             if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-              cpu_thread_number <- cpu_thread_number / 2
+              #cpu_thread_number <- cpu_thread_number / 2
               peaks_filtered <- mclapply(peaks, FUN = function (peaks) intensity_filtering_subfunction_element(peaks, low_intensity_peak_removal_threshold_percent), mc.cores = cpu_thread_number)
             } else if (Sys.info()[1] == "Windows") {
-              cpu_thread_number <- cpu_thread_number - 1
+              #cpu_thread_number <- cpu_thread_number - 1
               # Make the CPU cluster for parallelisation
               cl <- makeCluster(cpu_thread_number)
               # Make the cluster use the custom functions and the package functions along with their parameters
@@ -795,16 +797,18 @@ functions_mass_spectrometry <- function() {
             ### PARALLEL BACKEND
             require(parallel)
             # Detect the number of cores
-            cpu_thread_number <- detectCores(logical = TRUE)
+            #cpu_thread_number <- detectCores(logical = TRUE)
+            # Inspired by Firefox Quantum, use always 4 processes
+            cpu_thread_number <- 4
             if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-              cpu_thread_number <- cpu_thread_number / 2
+              #cpu_thread_number <- cpu_thread_number / 2
               #require(doMC)
               require(doParallel)
               # Register the foreach backend
               registerDoParallel(cpu_thread_number)
               #registerDoMC(cores = cpu_thread_number)
             } else if (Sys.info()[1] == "Windows") {
-              cpu_thread_number <- cpu_thread_number / 2
+              #cpu_thread_number <- cpu_thread_number / 2
               require(doParallel)
               # Register the foreach backend
               cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -885,12 +889,14 @@ functions_mass_spectrometry <- function() {
           ### MULTICORE
           if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Detect the number of cores
-            cpu_thread_number <- detectCores(logical = TRUE)
+            #cpu_thread_number <- detectCores(logical = TRUE)
+            # Inspired by Firefox Quantum, use always 4 processes
+            cpu_thread_number <- 4
             if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-              cpu_thread_number <- cpu_thread_number / 2
+              #cpu_thread_number <- cpu_thread_number / 2
               peaks_filtered <- mclapply(peaks, FUN = function(peaks) intensity_filtering_subfunction_whole(peaks, low_intensity_peak_removal_threshold_percent, highest_intensity), mc.cores = cpu_thread_number)
             } else if (Sys.info()[1] == "Windows") {
-              cpu_thread_number <- cpu_thread_number - 1
+              #cpu_thread_number <- cpu_thread_number - 1
               # Make the CPU cluster for parallelisation
               cl <- makeCluster(cpu_thread_number)
               # Make the cluster use the custom functions and the package functions along with their parameters
@@ -907,16 +913,18 @@ functions_mass_spectrometry <- function() {
             ### PARALLEL BACKEND
             require(parallel)
             # Detect the number of cores
-            cpu_thread_number <- detectCores(logical = TRUE)
+            #cpu_thread_number <- detectCores(logical = TRUE)
+            # Inspired by Firefox Quantum, use always 4 processes
+            cpu_thread_number <- 4
             if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-              cpu_thread_number <- cpu_thread_number / 2
+              #cpu_thread_number <- cpu_thread_number / 2
               #require(doMC)
               require(doParallel)
               # Register the foreach backend
               registerDoParallel(cpu_thread_number)
               #registerDoMC(cores = cpu_thread_number)
             } else if (Sys.info()[1] == "Windows") {
-              cpu_thread_number <- cpu_thread_number / 2
+              #cpu_thread_number <- cpu_thread_number / 2
               require(doParallel)
               # Register the foreach backend
               cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -1555,12 +1563,14 @@ functions_mass_spectrometry <- function() {
           # Load the required libraries
           require(parallel)
           # Detect the number of cores
-          cpu_thread_number <- detectCores(logical = TRUE)
+          #cpu_thread_number <- detectCores(logical = TRUE)
+          # Inspired by Firefox Quantum, use always 4 processes
+            cpu_thread_number <- 4
           if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-            cpu_thread_number <- cpu_thread_number / 2
+            #cpu_thread_number <- cpu_thread_number / 2
             spectra_binned <- mclapply(spectra, FUN = function (spectra) binning_subfunction(spectra, final_data_points, binning_method), mc.cores = cpu_thread_number)
           } else if (Sys.info()[1] == "Windows") {
-            cpu_thread_number <- cpu_thread_number - 1
+            #cpu_thread_number <- cpu_thread_number - 1
             cl <- makeCluster(cpu_thread_number)
             # Pass the variables to the cluster for running the function
             clusterExport(cl = cl, varlist = c("final_data_points", "binning_method"), envir = environment())
@@ -1573,16 +1583,18 @@ functions_mass_spectrometry <- function() {
           ### PARALLEL BACKEND
           require(parallel)
           # Detect the number of cores
-          cpu_thread_number <- detectCores(logical = TRUE)
+          #cpu_thread_number <- detectCores(logical = TRUE)
+          # Inspired by Firefox Quantum, use always 4 processes
+            cpu_thread_number <- 4
           if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-            cpu_thread_number <- cpu_thread_number / 2
+            #cpu_thread_number <- cpu_thread_number / 2
             #require(doMC)
             require(doParallel)
             # Register the foreach backend
             registerDoParallel(cpu_thread_number)
             #registerDoMC(cores = cpu_thread_number)
           } else if (Sys.info()[1] == "Windows") {
-            cpu_thread_number <- cpu_thread_number / 2
+            #cpu_thread_number <- cpu_thread_number / 2
             require(doParallel)
             # Register the foreach backend
             cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -1646,12 +1658,14 @@ functions_mass_spectrometry <- function() {
       ##### Apply the function
       if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+            cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           spectra <- mclapply(spectra, FUN = function(spectra) backslash_replacing_subfunction(spectra), mc.cores = cpu_thread_number)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number - 1
+          #cpu_thread_number <- cpu_thread_number - 1
           # Make the CPU cluster for parallelisation
           cl <- makeCluster(cpu_thread_number)
           # Make the cluster use the custom functions and the package functions along with their parameters
@@ -1668,16 +1682,18 @@ functions_mass_spectrometry <- function() {
         ### PARALLEL BACKEND
         require(parallel)
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+          cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           #require(doMC)
           require(doParallel)
           # Register the foreach backend
           registerDoParallel(cpu_thread_number)
           #registerDoMC(cores = cpu_thread_number)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           require(doParallel)
           # Register the foreach backend
           cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -1844,12 +1860,14 @@ functions_mass_spectrometry <- function() {
       ##### Apply the function
       if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+        cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           spectra <- mclapply(spectra, FUN = function(spectra) name_replacing_subfunction(spectra, spectra_format = spectra_format), mc.cores = cpu_thread_number)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number - 1
+          #cpu_thread_number <- cpu_thread_number - 1
           # Make the CPU cluster for parallelisation
           cl <- makeCluster(cpu_thread_number)
           # Make the cluster use the custom functions and the package functions along with their parameters
@@ -1866,16 +1884,18 @@ functions_mass_spectrometry <- function() {
         ### PARALLEL BACKEND
         require(parallel)
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+        cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           #require(doMC)
           require(doParallel)
           # Register the foreach backend
           registerDoParallel(cpu_thread_number)
           #registerDoMC(cores = cpu_thread_number)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           require(doParallel)
           # Register the foreach backend
           cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -2376,12 +2396,14 @@ functions_mass_spectrometry <- function() {
         # Apply the function to the list of spectra_temp
         if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
           # Detect the number of cores
-          cpu_thread_number <- detectCores(logical = TRUE)
+          #cpu_thread_number <- detectCores(logical = TRUE)
+          # Inspired by Firefox Quantum, use always 4 processes
+          cpu_thread_number <- 4
           if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-            cpu_thread_number <- cpu_thread_number / 2
+            #cpu_thread_number <- cpu_thread_number / 2
             spectra_temp <- mclapply(spectra_temp, FUN = function(spectra_temp) preprocessing_subfunction(spectra_temp, mass_range = mass_range, transformation_algorithm = transformation_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_half_window_size = smoothing_half_window_size, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range), mc.cores = cpu_thread_number)
           } else if (Sys.info()[1] == "Windows") {
-            cpu_thread_number <- cpu_thread_number - 1
+            #cpu_thread_number <- cpu_thread_number - 1
             cl <- makeCluster(cpu_thread_number)
             clusterEvalQ(cl, {library(MALDIquant)})
             clusterExport(cl = cl, varlist = c("mass_range", "transformation_algorithm", "smoothing_algorithm", "smoothing_half_window_size", "baseline_subtraction_algorithm", "baseline_subtraction_algorithm_parameter", "normalization_algorithm", "normalization_mass_range", "preprocessing_subfunction", "normalize_spectra"), envir = environment())
@@ -2394,16 +2416,18 @@ functions_mass_spectrometry <- function() {
           ### PARALLEL BACKEND
           require(parallel)
           # Detect the number of cores
-          cpu_thread_number <- detectCores(logical = TRUE)
+          #cpu_thread_number <- detectCores(logical = TRUE)
+          # Inspired by Firefox Quantum, use always 4 processes
+          cpu_thread_number <- 4
           if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-            cpu_thread_number <- cpu_thread_number / 2
+            #cpu_thread_number <- cpu_thread_number / 2
             #require(doMC)
             require(doParallel)
             # Register the foreach backend
             registerDoParallel(cpu_thread_number)
             #registerDoMC(cores = cpu_thread_number)
           } else if (Sys.info()[1] == "Windows") {
-            cpu_thread_number <- cpu_thread_number / 2
+            #cpu_thread_number <- cpu_thread_number / 2
             require(doParallel)
             # Register the foreach backend
             cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -2815,13 +2839,15 @@ functions_mass_spectrometry <- function() {
       # Peak detection
       if (((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply"))) {
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+        cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           peaks <- detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR, mc.cores = cpu_thread_number)
           names(peaks) <- names(spectra)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number - 1
+          #cpu_thread_number <- cpu_thread_number - 1
           # Make the cluster (one for each core/thread)
           cl <- makeCluster(cpu_thread_number)
           clusterEvalQ(cl, {library(MALDIquant)})
@@ -2837,16 +2863,18 @@ functions_mass_spectrometry <- function() {
         ### PARALLEL BACKEND
         require(parallel)
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+        cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           #require(doMC)
           require(doParallel)
           # Register the foreach backend
           registerDoParallel(cpu_thread_number)
           #registerDoMC(cores = cpu_thread_number)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           require(doParallel)
           # Register the foreach backend
           cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -2901,12 +2929,14 @@ functions_mass_spectrometry <- function() {
     if (isMassPeaksList(peaks)) {
       if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+        cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           peaks <- mclapply(peaks, FUN = function(peaks) subselect_peaks_subfunction(peaks, signals_to_take = signals_to_take), mc.cores = cpu_thread_number)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number - 1
+          #cpu_thread_number <- cpu_thread_number - 1
           # Make the CPU cluster for parallelisation
           cl <- makeCluster(cpu_thread_number)
           # Pass the variables to the cluster for running the function
@@ -2920,16 +2950,18 @@ functions_mass_spectrometry <- function() {
         ### PARALLEL BACKEND
         require(parallel)
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+        cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           #require(doMC)
           require(doParallel)
           # Register the foreach backend
           registerDoParallel(cpu_thread_number)
           #registerDoMC(cores = cpu_thread_number)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           require(doParallel)
           # Register the foreach backend
           cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -3037,12 +3069,14 @@ functions_mass_spectrometry <- function() {
       ##### Multiple cores
       if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+        cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           peaks_deisotoped <- monoisotopicPeaks(peaks, minCor = pattern_model_correlation, tolerance = isotopic_tolerance, distance = isotope_pattern_distance, size = isotopic_pattern_size, mc.cores = cpu_thread_number)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number - 1
+          #cpu_thread_number <- cpu_thread_number - 1
           # Make the CPU cluster for parallelisation
           cl <- makeCluster(cpu_thread_number)
           # Make the cluster use the custom functions and the package functions along with their parameters
@@ -3060,16 +3094,18 @@ functions_mass_spectrometry <- function() {
         ### PARALLEL BACKEND
         require(parallel)
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+        cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           #require(doMC)
           require(doParallel)
           # Register the foreach backend
           registerDoParallel(cpu_thread_number)
           #registerDoMC(cores = cpu_thread_number)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           require(doParallel)
           # Register the foreach backend
           cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -3152,12 +3188,14 @@ functions_mass_spectrometry <- function() {
       ##### Multiple cores
       if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+        cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           peaks_enveloped <- mclapply(peaks, FUN = function(peaks) envelope_peaklist_subfunction(peaks), mc.cores = cpu_thread_number)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number - 1
+          #cpu_thread_number <- cpu_thread_number - 1
           # Make the CPU cluster for parallelisation
           cl <- makeCluster(cpu_thread_number)
           # Make the cluster use the custom functions and the package functions along with their parameters
@@ -3175,9 +3213,11 @@ functions_mass_spectrometry <- function() {
         ### PARALLEL BACKEND
         require(parallel)
         # Detect the number of cores
-        cpu_thread_number <- detectCores(logical = TRUE)
+        #cpu_thread_number <- detectCores(logical = TRUE)
+        # Inspired by Firefox Quantum, use always 4 processes
+        cpu_thread_number <- 4
         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           #require(doMC)
           require(doParallel)
           # Register the foreach backend
@@ -3185,7 +3225,7 @@ functions_mass_spectrometry <- function() {
           # Register the foreach backend
           #registerDoMC(cores = cpu_thread_number)
         } else if (Sys.info()[1] == "Windows") {
-          cpu_thread_number <- cpu_thread_number / 2
+          #cpu_thread_number <- cpu_thread_number / 2
           require(doParallel)
           # Register the foreach backend
           cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -3352,13 +3392,15 @@ functions_mass_spectrometry <- function() {
           if (isMassPeaksList(peaks_aligned)) {
             if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
               # Detect the number of cores
-              cpu_thread_number <- detectCores(logical = TRUE)
+              #cpu_thread_number <- detectCores(logical = TRUE)
+              # Inspired by Firefox Quantum, use always 4 processes
+              cpu_thread_number <- 4
               if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-                cpu_thread_number <- cpu_thread_number / 2
+                #cpu_thread_number <- cpu_thread_number / 2
                 #peaks_aligned <- mclapply(peaks_aligned, FUN = function(peaks_aligned) align_peaks_subfunction(peaks_aligned, reference_peaklist, tolerance_ppm), mc.cores = cpu_thread_number)
                 peaks_aligned <- mclapply(peaks_aligned, FUN = function(peaks_aligned) warpMassPeaks(peaks_aligned, w = warping_functions), mc.cores = cpu_thread_number)
               } else if (Sys.info()[1] == "Windows") {
-                cpu_thread_number <- cpu_thread_number - 1
+                #cpu_thread_number <- cpu_thread_number - 1
                 # Make the CPU cluster for parallelisation
                 cl <- makeCluster(cpu_thread_number)
                 # Apply the multicore function
@@ -3371,16 +3413,18 @@ functions_mass_spectrometry <- function() {
               ### PARALLEL BACKEND
               require(parallel)
               # Detect the number of cores
-              cpu_thread_number <- detectCores(logical = TRUE)
+              #cpu_thread_number <- detectCores(logical = TRUE)
+              # Inspired by Firefox Quantum, use always 4 processes
+              cpu_thread_number <- 4
               if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-                cpu_thread_number <- cpu_thread_number / 2
+                #cpu_thread_number <- cpu_thread_number / 2
                 #require(doMC)
                 require(doParallel)
                 # Register the foreach backend
                 registerDoParallel(cpu_thread_number)
                 #registerDoMC(cores = cpu_thread_number)
               } else if (Sys.info()[1] == "Windows") {
-                cpu_thread_number <- cpu_thread_number / 2
+                #cpu_thread_number <- cpu_thread_number / 2
                 require(doParallel)
                 # Register the foreach backend
                 cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -4432,16 +4476,18 @@ functions_mass_spectrometry <- function() {
       ### PARALLEL BACKEND
       require(parallel)
       # Detect the number of cores
-      cpu_thread_number <- detectCores(logical = TRUE)
+      #cpu_thread_number <- detectCores(logical = TRUE)
+      # Inspired by Firefox Quantum, use always 4 processes
+      cpu_thread_number <- 4
       if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         #require(doMC)
         require(doParallel)
         # Register the foreach backend
         registerDoParallel(cpu_thread_number)
         #registerDoMC(cores = cpu_thread_number)
       } else if (Sys.info()[1] == "Windows") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         require(doParallel)
         # Register the foreach backend
         cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -4617,16 +4663,18 @@ functions_mass_spectrometry <- function() {
       ### PARALLEL BACKEND
       require(parallel)
       # Detect the number of cores
-      cpu_thread_number <- detectCores(logical = TRUE)
+      #cpu_thread_number <- detectCores(logical = TRUE)
+      # Inspired by Firefox Quantum, use always 4 processes
+      cpu_thread_number <- 4
       if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         #require(doMC)
         require(doParallel)
         # Register the foreach backend
         registerDoParallel(cpu_thread_number)
         #registerDoMC(cores = cpu_thread_number)
       } else if (Sys.info()[1] == "Windows") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         require(doParallel)
         # Register the foreach backend
         cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -4787,16 +4835,18 @@ functions_mass_spectrometry <- function() {
       require(parallel)
       require(foreach)
       # Detect the number of cores
-      cpu_thread_number <- detectCores(logical = TRUE)
+      #cpu_thread_number <- detectCores(logical = TRUE)
+      # Inspired by Firefox Quantum, use always 4 processes
+      cpu_thread_number <- 4
       if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         #require(doMC)
         require(doParallel)
         # Register the foreach backend
         registerDoParallel(cpu_thread_number)
         #registerDoMC(cores = cpu_thread_number)
       } else if (Sys.info()[1] == "Windows") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         require(doParallel)
         # Register the foreach backend
         cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -4827,10 +4877,10 @@ functions_mass_spectrometry <- function() {
     rfe_ctrl <- rfeControl(functions = caretFuncs, method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, saveDetails = TRUE, allowParallel = allow_parallelization, rerank = feature_reranking, seeds = NULL)
     # Two classes
     #if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
-    #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
+      #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
     #} else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
-    # Multi-classes
-    #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
+      # Multi-classes
+      #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
     #}
     train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL)#, classProbs = TRUE)
     ### Model tuning is performed during feature selection (best choice)
@@ -4844,17 +4894,17 @@ functions_mass_spectrometry <- function() {
     }
     ### Model performances: two classes (ROC)
     #if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
-    #fs_model_performance <- as.numeric(max(rfe_model$fit$results$ROC, na.rm = TRUE))
-    #names(fs_model_performance) <- "ROC AUC"
+      #fs_model_performance <- as.numeric(max(rfe_model$fit$results$ROC, na.rm = TRUE))
+      #names(fs_model_performance) <- "ROC AUC"
     #} else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
-    ### Model performances: multi-classes (Accuracy or Kappa)
-    if (selection_metric == "kappa" || selection_metric == "Kappa") {
-      fs_model_performance <- as.numeric(max(rfe_model$fit$results$Kappa, na.rm = TRUE))
-      names(fs_model_performance) <- "Kappa"
-    } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
-      fs_model_performance <- as.numeric(max(rfe_model$fit$results$Accuracy, na.rm = TRUE))
-      names(fs_model_performance) <- "Accuracy"
-    }
+      ### Model performances: multi-classes (Accuracy or Kappa)
+      if (selection_metric == "kappa" || selection_metric == "Kappa") {
+        fs_model_performance <- as.numeric(max(rfe_model$fit$results$Kappa, na.rm = TRUE))
+        names(fs_model_performance) <- "Kappa"
+      } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
+        fs_model_performance <- as.numeric(max(rfe_model$fit$results$Accuracy, na.rm = TRUE))
+        names(fs_model_performance) <- "Accuracy"
+      }
     #}
     # Extract the model
     fs_model <- rfe_model$fit
@@ -4910,9 +4960,9 @@ functions_mass_spectrometry <- function() {
       }
       # Define the control function
       #if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
-      #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
+        #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
       #} else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
-      #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
+        #train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
       #}
       train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL)#, classProbs = TRUE)
       # Define the model tuned
@@ -4928,17 +4978,17 @@ functions_mass_spectrometry <- function() {
       }
       ### Model performances: two classes (ROC)
       #if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
-      #fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$ROC, na.rm = TRUE))
-      #names(fs_model_performance_tuning) <- "ROC AUC"
+        #fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$ROC, na.rm = TRUE))
+        #names(fs_model_performance_tuning) <- "ROC AUC"
       #} else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
-      ### Model performances: multi-classes (Accuracy or Kappa)
-      if (selection_metric == "kappa" || selection_metric == "Kappa") {
-        fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Kappa, na.rm = TRUE))
-        names(fs_model_performance_tuning) <- "Kappa"
-      } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
-        fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Accuracy, na.rm = TRUE))
-        names(fs_model_performance_tuning) <- "Accuracy"
-      }
+        ### Model performances: multi-classes (Accuracy or Kappa)
+        if (selection_metric == "kappa" || selection_metric == "Kappa") {
+          fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Kappa, na.rm = TRUE))
+          names(fs_model_performance_tuning) <- "Kappa"
+        } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
+          fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Accuracy, na.rm = TRUE))
+          names(fs_model_performance_tuning) <- "Accuracy"
+        }
       #}
       ## Keep the model and the performance values only if the tuning yields more performances that just after the RFE
       if (as.numeric(fs_model_performance_tuning) > as.numeric(fs_model_performance)) {
@@ -5513,16 +5563,18 @@ functions_mass_spectrometry <- function() {
       ### PARALLEL BACKEND
       require(parallel)
       # Detect the number of cores
-      cpu_thread_number <- detectCores(logical = TRUE)
+      #cpu_thread_number <- detectCores(logical = TRUE)
+      # Inspired by Firefox Quantum, use always 4 processes
+      cpu_thread_number <- 4
       if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         #require(doMC)
         require(doParallel)
         # Register the foreach backend
         registerDoParallel(cpu_thread_number)
         #registerDoMC(cores = cpu_thread_number)
       } else if (Sys.info()[1] == "Windows") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         require(doParallel)
         # Register the foreach backend
         cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -6380,12 +6432,14 @@ functions_mass_spectrometry <- function() {
     ##### Run the function for each element of the reference_sample_list (= each sample) (each sample gets compared with the database)
     if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
       # Detect the number of cores
-      cpu_thread_number <- detectCores(logical = TRUE)
+      #cpu_thread_number <- detectCores(logical = TRUE)
+      # Inspired by Firefox Quantum, use always 4 processes
+      cpu_thread_number <- 4
       if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         output_list <- mclapply(reference_sample_list, FUN = function(reference_sample_list) comparison_sample_db_subfunction_correlation(reference_sample_list, modality = correlation_mode), mc.cores = cpu_thread_number)
       } else if (Sys.info()[1] == "Windows") {
-        cpu_thread_number <- cpu_thread_number - 1
+        #cpu_thread_number <- cpu_thread_number - 1
         # Make the CPU cluster for parallelisation
         cls <- makeCluster(cpu_thread_number)
         # Make the cluster use the custom functions and the package functions along with their parameters
@@ -6401,16 +6455,18 @@ functions_mass_spectrometry <- function() {
       ### PARALLEL BACKEND
       require(parallel)
       # Detect the number of cores
-      cpu_thread_number <- detectCores(logical = TRUE)
+      #cpu_thread_number <- detectCores(logical = TRUE)
+      # Inspired by Firefox Quantum, use always 4 processes
+      cpu_thread_number <- 4
       if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         #require(doMC)
         require(doParallel)
         # Register the foreach backend
         registerDoParallel(cpu_thread_number)
         #registerDoMC(cores = cpu_thread_number)
       } else if (Sys.info()[1] == "Windows") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         require(doParallel)
         # Register the foreach backend
         cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -6897,12 +6953,14 @@ functions_mass_spectrometry <- function() {
     ##### Run the function for each element of the reference_sample_list (= each sample) (each sample gets compared with the database)
     if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
       # Detect the number of cores
-      cpu_thread_number <- detectCores(logical = TRUE)
+      #cpu_thread_number <- detectCores(logical = TRUE)
+      # Inspired by Firefox Quantum, use always 4 processes
+      cpu_thread_number <- 4
       if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         output_list <- mclapply(reference_sample_list, FUN = function(reference_sample_list) comparison_sample_db_subfunction_intensity(reference_sample_list), mc.cores = cpu_thread_number)
       } else if (Sys.info()[1] == "Windows") {
-        cpu_thread_number <- cpu_thread_number - 1
+        #cpu_thread_number <- cpu_thread_number - 1
         # Make the CPU cluster for parallelisation
         cls <- makeCluster(cpu_thread_number)
         # Make the cluster use the custom functions and the package functions along with their parameters
@@ -6916,16 +6974,18 @@ functions_mass_spectrometry <- function() {
       ### PARALLEL BACKEND
       require(parallel)
       # Detect the number of cores
-      cpu_thread_number <- detectCores(logical = TRUE)
+      #cpu_thread_number <- detectCores(logical = TRUE)
+      # Inspired by Firefox Quantum, use always 4 processes
+      cpu_thread_number <- 4
       if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         #require(doMC)
         require(doParallel)
         # Register the foreach backend
         registerDoParallel(cpu_thread_number)
         #registerDoMC(cores = cpu_thread_number)
       } else if (Sys.info()[1] == "Windows") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         require(doParallel)
         # Register the foreach backend
         cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -7244,12 +7304,14 @@ functions_mass_spectrometry <- function() {
     ##### Run the function for each element of the reference_sample_list (= each sample) (each sample gets compared with the database)
     if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
       # Detect the number of cores
-      cpu_thread_number <- detectCores(logical = TRUE)
+      #cpu_thread_number <- detectCores(logical = TRUE)
+      # Inspired by Firefox Quantum, use always 4 processes
+      cpu_thread_number <- 4
       if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         output_list <- mclapply(reference_sample_list, FUN = function(reference_sample_list) comparison_sample_db_subfunction_similarity_index(reference_sample_list), mc.cores = cpu_thread_number)
       } else if (Sys.info()[1] == "Windows") {
-        cpu_thread_number <- cpu_thread_number - 1
+        #cpu_thread_number <- cpu_thread_number - 1
         # Make the CPU cluster for parallelisation
         cls <- makeCluster(cpu_thread_number)
         # Make the cluster use the custom functions and the package functions along with their parameters
@@ -7262,16 +7324,18 @@ functions_mass_spectrometry <- function() {
       ### PARALLEL BACKEND
       require(parallel)
       # Detect the number of cores
-      cpu_thread_number <- detectCores(logical = TRUE)
+      #cpu_thread_number <- detectCores(logical = TRUE)
+      # Inspired by Firefox Quantum, use always 4 processes
+      cpu_thread_number <- 4
       if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         #require(doMC)
         require(doParallel)
         # Register the foreach backend
         registerDoParallel(cpu_thread_number)
         #registerDoMC(cores = cpu_thread_number)
       } else if (Sys.info()[1] == "Windows") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         require(doParallel)
         # Register the foreach backend
         cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -7611,12 +7675,14 @@ functions_mass_spectrometry <- function() {
         if (isMassPeaksList(peaks)) {
           if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Detect the number of cores
-            cpu_thread_number <- detectCores(logical = TRUE)
+            #cpu_thread_number <- detectCores(logical = TRUE)
+            # Inspired by Firefox Quantum, use always 4 processes
+            cpu_thread_number <- 4
             if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-              cpu_thread_number <- cpu_thread_number / 2
+              #cpu_thread_number <- cpu_thread_number / 2
               peaks <- mclapply(peaks, FUN = function(peaks) peak_alignment_subfunction(peaks = peaks, reference_masses = custom_feature_vector, tolerance_ppm = tolerance_ppm), mc.cores = cpu_thread_number)
             } else if (Sys.info()[1] == "Windows") {
-              cpu_thread_number <- cpu_thread_number - 1
+              #cpu_thread_number <- cpu_thread_number - 1
               # Make the CPU cluster for parallelisation
               cl <- makeCluster(cpu_thread_number)
               # Make the cluster use the custom functions and the package functions along with their parameters
@@ -7633,16 +7699,18 @@ functions_mass_spectrometry <- function() {
             ### PARALLEL BACKEND
             require(parallel)
             # Detect the number of cores
-            cpu_thread_number <- detectCores(logical = TRUE)
+            #cpu_thread_number <- detectCores(logical = TRUE)
+            # Inspired by Firefox Quantum, use always 4 processes
+            cpu_thread_number <- 4
             if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-              cpu_thread_number <- cpu_thread_number / 2
+              #cpu_thread_number <- cpu_thread_number / 2
               #require(doMC)
               require(doParallel)
               # Register the foreach backend
               registerDoParallel(cpu_thread_number)
               #registerDoMC(cores = cpu_thread_number)
             } else if (Sys.info()[1] == "Windows") {
-              cpu_thread_number <- cpu_thread_number / 2
+              #cpu_thread_number <- cpu_thread_number / 2
               require(doParallel)
               # Register the foreach backend
               cl <- makeCluster(cpu_thread_number, type='PSOCK')
@@ -8256,16 +8324,18 @@ functions_mass_spectrometry <- function() {
       ### PARALLEL BACKEND
       require(parallel)
       # Detect the number of cores
-      cpu_thread_number <- detectCores(logical = TRUE)
+      #cpu_thread_number <- detectCores(logical = TRUE)
+      # Inspired by Firefox Quantum, use always 4 processes
+      cpu_thread_number <- 4
       if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         #require(doMC)
         require(doParallel)
         # Register the foreach backend
         registerDoParallel(cpu_thread_number)
         #registerDoMC(cores = cpu_thread_number)
       } else if (Sys.info()[1] == "Windows") {
-        cpu_thread_number <- cpu_thread_number / 2
+        #cpu_thread_number <- cpu_thread_number / 2
         require(doParallel)
         # Register the foreach backend
         cls <- makeCluster(cpu_thread_number)
@@ -8622,7 +8692,8 @@ functions_mass_spectrometry <- function() {
   
   
   ################################################################################
-  }
+}
+
 
 
 
@@ -8749,7 +8820,7 @@ ms_pixel_typer <- function() {
   # In the debugging phase, run the whole code block within the {}, like as if the script was directly sourced from the file.
   
   ### Program version (Specified by the program writer!!!!)
-  R_script_version <- "2017.11.13.1"
+  R_script_version <- "2017.11.28.0"
   ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
   force_update <- FALSE
   ### GitHub URL where the R file is
